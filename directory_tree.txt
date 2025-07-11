@@ -1,0 +1,161 @@
+applications.web.intel-foundry.ifs3.api-project
+📁 .caas
+└── 📁 dev
+│   ├── 📄 cert-dev.yaml
+│   ├── 📄 deployment-dev.yaml
+│   ├── 📄 ingress-dev.yaml
+│   ├── 📄 issuer-dev.yaml
+│   └── 📄 service-dev.yaml
+📄 .dockerignore
+📄 .editorconfig
+📁 .github
+├── 📄 CODEOWNERS
+├── 📄 pull_request_template.md
+└── 📁 workflows
+│   ├── 📄 Build.yml
+│   ├── 📄 BuildUploadDev.yml
+│   ├── 📄 BuildUploadPreProd.yml
+│   ├── 📄 BuildUploadProd.yml
+│   ├── 📄 BuildUploadStage.yml
+│   ├── 📄 Dev_Deployment.yml
+│   ├── 📄 PreProd_Deployment.yml
+│   ├── 📄 Prod_Deployment.yml
+│   ├── 📄 Stage_Deployment.yml
+│   ├── 📄 main.yml
+│   └── 📄 semgrep.yml
+📄 .gitignore
+📄 Dockerfile
+📄 Dockerfile-preprod
+📄 Dockerfile-prod
+📄 Dockerfile-stage
+📁 IFS.Project.API
+├── 📁 .config
+│   └── 📄 dotnet-tools.json
+├── 📁 Configurations
+│   ├── 📄 IfsDbConfiguration.cs
+│   ├── 📄 PortalConfigurationSection.cs
+│   └── 📄 ProjectDataConfiguration.cs
+├── 📁 Controllers
+│   ├── 📄 CompanyController.cs
+│   ├── 📄 CoveoProjectController.cs
+│   ├── 📄 ProductController.cs
+│   └── 📄 ProjectController.cs
+├── 📁 Extensions
+│   └── 📄 LoggingExtension.cs
+├── 📄 IFS.Project.API.csproj
+├── 📄 Program.cs
+├── 📁 Properties
+│   ├── 📄 launchSettings.json
+│   ├── 📄 serviceDependencies.json
+│   └── 📄 serviceDependencies.local.json
+├── 📁 Worker
+│   └── 📄 ConfigWatcherWorker.cs
+├── 📄 appsettings.Development.json
+└── 📄 appsettings.json
+📁 IFS.Project.Adapters
+├── 📄 AbstractTransactionalAdapter.cs
+├── 📄 IFS.Project.Adapters.csproj
+├── 📄 IfsTransactionalSqlAdapter.cs
+└── 📄 IfsTrxTransactionalSqlAdapter.cs
+📁 IFS.Project.Constants
+├── 📄 DataTableConstants.cs
+├── 📄 IFS.Project.Constants.csproj
+├── 📄 ProductConstants.cs
+└── 📄 ProjectConstants.cs
+📁 IFS.Project.DTOs
+├── 📄 CompanyDTO.cs
+├── 📄 CompanyRequestDTO.cs
+├── 📄 CompanyUAMDTO.cs
+├── 📄 ContractDTO.cs
+├── 📄 DotProcessDTO.cs
+├── 📄 DotProcessInfoDTO.cs
+├── 📄 IFS.Project.DTOs.csproj
+├── 📄 MasterContractDTO.cs
+├── 📄 ProductAttributeDTO.cs
+├── 📄 ProductDTO.cs
+├── 📄 ProductRequestDTO.cs
+├── 📄 ProjectContractDTO.cs
+├── 📄 ProjectDTO.cs
+├── 📄 ProjectEngagementDTO.cs
+├── 📄 ProjectRequestDTO.cs
+├── 📄 RequestDTO.cs
+├── 📄 SteppingDTO.cs
+├── 📄 SupportContractDTO.cs
+└── 📄 UAMEmailDomain.cs
+📁 IFS.Project.Entities
+├── 📄 CompanyEntity.cs
+├── 📄 CompanyRequestEntity.cs
+├── 📄 CompanyUAMEntity.cs
+├── 📄 ContractEntity.cs
+├── 📄 DotProcessEntity.cs
+├── 📄 DotProcessInfoEntity.cs
+├── 📄 IFS.Project.Entities.csproj
+├── 📄 MasterContractEntity.cs
+├── 📄 ProductAttributeEntity.cs
+├── 📄 ProductEntity.cs
+├── 📄 ProductRequestEntity.cs
+├── 📄 ProjectContractEntity.cs
+├── 📄 ProjectEngagementEntity.cs
+├── 📄 ProjectEntity.cs
+├── 📄 ProjectInfoEntity.cs
+├── 📄 ProjectRequestEntity.cs
+├── 📄 RequestEntity.cs
+├── 📄 SteppingEntity.cs
+├── 📄 SupportContractEntity.cs
+└── 📄 UserProjectContentInfoEntity.cs
+📁 IFS.Project.Exceptions
+├── 📄 IFS.Project.Exceptions.csproj
+└── 📄 NoUpdateException.cs
+📁 IFS.Project.Extensions
+├── 📄 HttpResponseMessageExtensions.cs
+└── 📄 IFS.Project.Extensions.csproj
+📁 IFS.Project.Interfaces
+├── 📄 ICompanyManagementMapper.cs
+├── 📄 ICompanyManagementRepository.cs
+├── 📄 ICompanyManagementService.cs
+├── 📄 IFS.Project.Interfaces.csproj
+├── 📄 IIfsDb.cs
+├── 📄 IIfsTransactionalAdapter.cs
+├── 📄 IIfsTrxDb.cs
+├── 📄 IIfsTrxTransactionalAdapter.cs
+├── 📄 IProductManagementMapper.cs
+├── 📄 IProductManagementRepository.cs
+├── 📄 IProductManagementService.cs
+├── 📄 IProjectDataConfiguration.cs
+├── 📄 IProjectManagementMapper.cs
+├── 📄 IProjectManagementRepository.cs
+├── 📄 IProjectManagementService.cs
+├── 📄 ISqlDb.cs
+└── 📄 ITransactionalAdapter.cs
+📁 IFS.Project.Mappers
+├── 📄 CompanyManagementMapper.cs
+├── 📄 IFS.Project.Mappers.csproj
+├── 📄 ProductManagementMapper.cs
+└── 📄 ProjectManagementMapper.cs
+📁 IFS.Project.Repository
+├── 📄 CompanyManagementRepository.cs
+├── 📁 DbEntities
+│   ├── 📄 CONFIG_prd.cs
+│   └── 📄 CONFIG_prd_ext_atrb.cs
+├── 📄 IFS.Project.Repository.csproj
+├── 📄 ProductManagementRepository.cs
+└── 📄 ProjectManagementRepository.cs
+📁 IFS.Project.Services
+├── 📄 CompanyManagementService.cs
+├── 📄 IFS.Project.Services.csproj
+├── 📄 ProductManagementService.cs
+└── 📄 ProjectManagementService.cs
+📁 IFS.Project.Tests
+├── 📄 CompanyManagementRepositoryTest.cs
+├── 📄 CompanyManagementServiceTest.cs
+├── 📄 GlobalUsings.cs
+├── 📄 IFS.Project.Tests.csproj
+├── 📄 ProductManagementRepositoryTest.cs
+├── 📄 ProductManagementServiceTest.cs
+├── 📄 ProjectManagementRepositoryTest.cs
+├── 📄 ProjectManagementServiceTest.cs
+└── 📁 Stubs
+│   ├── 📄 IfsDBContextStub.cs
+│   └── 📄 ProjectDataConfigurationStub.cs
+📄 IFS.Project.sln
+📄 README.md
