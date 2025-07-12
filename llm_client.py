@@ -83,48 +83,40 @@ def initialize_llm_client():
     return client
 
 
-def generate_codebase_review_plan(text_tree, project_path):
-    """Generate a codebase review plan using LLM"""
+def generate_entrypoints_list(text_tree, project_path):
+    """Generate a list of entry points in the codebase using LLM"""
     client = initialize_llm_client()
     if not client:
         return None
     
-    prompt = f"""You are a senior software architect and code reviewer. I need you to analyze the following project structure and create a comprehensive codebase review plan.
+    prompt = f"""Analyze the following C# project structure and identify ALL entry points in the codebase.
 
 Project Path: {project_path}
 Project Structure:
 {text_tree}
 
-Based on this structure, please provide:
+Return ONLY a JSON array with the following structure. Do not include any additional text, explanations, or formatting outside of the JSON:
 
-1. **Project Overview**: 
-   - Identify the technology stack and frameworks being used
-   - Determine the project type and architecture pattern
-   - Identify key components and their relationships
+[
+  {{
+    "entrypoint": "entry point name",
+    "file": "relative/path/to/file.cs",
+    "type": "entry point type",
+    "trigger": "how this entry point gets triggered"
+  }}
+]
 
-2. **Review Priorities** (in order of importance):
-   - Critical files that should be reviewed first
-   - Core business logic components
-   - Configuration and setup files
-   - Test coverage areas
+Entry point types to look for:
+- Main method (Program.cs)
+- Controller actions (HTTP endpoints)
+- Background services/hosted services
+- Event handlers
+- Scheduled jobs/tasks
+- Message queue consumers
+- Database triggers/stored procedures
+- Startup/configuration methods
 
-3. **Architecture Analysis**:
-   - Identify potential architectural concerns
-   - Suggest areas that might need refactoring
-   - Point out missing components or patterns
-
-4. **Review Checklist**:
-   - Security considerations to review
-   - Performance optimization opportunities
-   - Code quality and maintainability aspects
-   - Documentation and testing gaps
-
-5. **Recommended Review Order**:
-   - Step-by-step plan for reviewing the codebase
-   - Estimated time for each component
-   - Dependencies between components
-
-Please provide a structured, actionable plan that a development team can follow to conduct a thorough code review of this project."""
+The trigger description must be one line maximum and describe how the entry point is invoked."""
 
     try:
         response = client.chat.completions.create(
@@ -132,7 +124,7 @@ Please provide a structured, actionable plan that a development team can follow 
             messages=[
                 {
                     "role": "system", 
-                    "content": "You are an expert software architect and code reviewer with deep knowledge of software engineering best practices, security, and maintainability."
+                    "content": "You are a C# code analyzer. Return only valid JSON arrays without any additional text, explanations, or markdown formatting."
                 },
                 {
                     "role": "user", 

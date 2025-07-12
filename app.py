@@ -2,9 +2,10 @@
 Codebase analyzer that generates directory trees and AI-powered review plans
 """
 import os
+import json
 from datetime import datetime
 from directory_scanner import get_directory_tree, generate_text_tree
-from llm_client import generate_codebase_review_plan
+from llm_client import generate_entrypoints_list
 
 
 def main():
@@ -23,27 +24,28 @@ def main():
     with open("directory_tree.txt", 'w', encoding='utf-8') as f:
         f.write(text_tree)
     
-    # Generate AI review plan
-    review_plan = generate_codebase_review_plan(text_tree, project_path)
+    # Generate AI entrypoints list
+    entrypoints_json = generate_entrypoints_list(text_tree, project_path)
     
-    if review_plan:
-        # Save the review plan
-        with open("codebase_review_plan.md", 'w', encoding='utf-8') as f:
-            f.write(f"# Codebase Review Plan\n\n")
-            f.write(f"**Generated on:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"**Project Path:** {project_path}\n")
-            f.write(f"**Total Files/Folders:** {len(tree_items)}\n\n")
-            f.write("---\n\n")
-            f.write(review_plan)
-        
-        # Display the review plan
-        print(review_plan)
+    if entrypoints_json:
+        try:
+            # Parse the JSON response
+            entrypoints_list = json.loads(entrypoints_json)
+            
+            # Display summary
+            print(f"Found {len(entrypoints_list)} entry points:")
+            for entry in entrypoints_list:
+                print(f"  - {entry['entrypoint']} ({entry['type']}) in {entry['file']}")
+            
+            # The entrypoints_list variable now contains the parsed JSON data
+            # that can be used for further processing
+            
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON response: {e}")
+            print(f"Raw response: {entrypoints_json}")
     else:
-        print("Review plan generation failed. Check your API credentials and network connection.")
+        print("Entrypoints list generation failed. Check your API credentials and network connection.")
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
