@@ -52,10 +52,12 @@ def main():
             parsing_results = parser_manager.parse_files_by_language(grouped_files)
             
             # Create and populate graph database
-            print("\n📊 Building call stack graph...")
+            print("\n📊 Building code structure graph...")
             print("="*60)
-            print("STATIC CALL STACK GRAPH")
+            print("STATIC CODE STRUCTURE GRAPH")
             print("="*60)
+            print("(Class-method relationships for C#, adaptable for other languages)")
+            print()
             
             # Initialize graph database using configuration
             db_config = Config.get_database_config()
@@ -64,7 +66,7 @@ def main():
             graph_db.print_graph()
             graph_db.close()
             
-            print(f"\n✅ Analysis complete! Graph stored in database.")
+            print(f"\n✅ Analysis complete! Code structure graph stored in database.")
             
         except json.JSONDecodeError as e:
             print(f"❌ Failed to parse JSON response: {e}")

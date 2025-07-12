@@ -1,5 +1,8 @@
 """
-Parser manager for handling multiple language parsers
+Parser manager for handling multiple language parsers.
+Each parser generates language-appropriate graph structures:
+- C# parser: Class-method graphs with method call relationships
+- Future parsers may use different structures based on language paradigms
 """
 import os
 from typing import List, Dict, Any
@@ -12,10 +15,11 @@ class ParserManager:
     
     def __init__(self):
         self.parsers = {
-            'csharp': CSharpParser(),
-            # Add more parsers here for other languages
-            # 'python': PythonParser(),
-            # 'java': JavaParser(),
+            'csharp': CSharpParser(),  # Generates class-method graphs
+            # Add more parsers here for other languages with appropriate structures:
+            # 'python': PythonParser(),  # Could generate module-function or class-method graphs
+            # 'java': JavaParser(),      # Would generate class-method graphs like C#
+            # 'javascript': JSParser(),  # Could generate module-function or prototype graphs
         }
     
     def group_files_by_language(self, file_paths: List[str]) -> Dict[str, List[str]]:

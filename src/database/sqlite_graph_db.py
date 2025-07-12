@@ -36,6 +36,16 @@ class SQLiteGraphDB(GraphDatabaseInterface):
             )
         ''')
         
+        # Create method_calls table to store method calls within methods
+        cursor.execute('''
+            CREATE TABLE method_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                method_id INTEGER NOT NULL,
+                called_method_name TEXT NOT NULL,
+                FOREIGN KEY (method_id) REFERENCES nodes (id)
+            )
+        ''')
+        
         conn.commit()
         conn.close()
     
@@ -74,6 +84,19 @@ class SQLiteGraphDB(GraphDatabaseInterface):
         
         return method_id
     
+    def add_method_call(self, method_id: int, called_method_name: str):
+        """Add a method call relationship"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO method_calls (method_id, called_method_name)
+            VALUES (?, ?)
+        ''', (method_id, called_method_name))
+        
+        conn.commit()
+        conn.close()
+    
     def store_parsing_results(self, parsing_results: Dict[str, Dict[str, Any]]):
         """Store the parsing results in the graph database"""
         for language, language_results in parsing_results.items():
@@ -93,11 +116,16 @@ class SQLiteGraphDB(GraphDatabaseInterface):
                         
                         # Add methods under the class
                         for method_info in class_info['methods']:
-                            self.add_method(
+                            method_id = self.add_method(
                                 method_name=method_info['name'],
                                 visibility=method_info.get('visibility', 'private').title(),
                                 parent_class_id=class_id
                             )
+                            
+                            # Add method calls if they exist
+                            if 'method_calls' in method_info:
+                                for called_method in method_info['method_calls']:
+                                    self.add_method_call(method_id, called_method)
     
     def print_graph(self):
         """Print the graph in the specified format"""
@@ -120,7 +148,7 @@ class SQLiteGraphDB(GraphDatabaseInterface):
             
             # Get methods for this class
             cursor.execute('''
-                SELECT name, visibility
+                SELECT id, name, visibility
                 FROM nodes
                 WHERE type = 'Method' AND parent_id = ?
                 ORDER BY name
@@ -128,8 +156,29 @@ class SQLiteGraphDB(GraphDatabaseInterface):
             
             methods = cursor.fetchall()
             
-            for method_name, method_visibility in methods:
-                print(f"                   |____> {method_name}  (Properties - Type:Method,Visibility:{method_visibility})")
+            for method_id, method_name, method_visibility in methods:
+                # Get method calls for this method
+                cursor.execute('''
+                    SELECT called_method_name
+                    FROM method_calls
+                    WHERE method_id = ?
+                    ORDER BY called_method_name
+                ''', (method_id,))
+                
+                method_calls = cursor.fetchall()
+                method_calls_list = [call[0] for call in method_calls]
+                
+                # Format method calls as part of properties, limit length for readability
+                if method_calls_list:
+                    calls_str = ','.join(method_calls_list)
+                    # Truncate if too long to avoid display issues
+                    if len(calls_str) > 50:
+                        calls_str = calls_str[:47] + "..."
+                    calls_property = f",Calls:[{calls_str}]"
+                else:
+                    calls_property = ",Calls:[]"
+                
+                print(f"                   |____> {method_name}  (Properties - Type:Method,Visibility:{method_visibility}{calls_property})")
             
             print()  # Empty line between classes
         

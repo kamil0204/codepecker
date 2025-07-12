@@ -1,5 +1,5 @@
 """
-C# parser using tree-sitter
+C# parser using tree-sitter for building class-method graphs
 """
 import os
 from typing import List, Dict, Any
@@ -9,7 +9,7 @@ from .base_parser import BaseParser
 
 
 class CSharpParser(BaseParser):
-    """C# parser implementation using tree-sitter"""
+    """C# parser implementation for generating class-method graphs using tree-sitter"""
     
     def __init__(self):
         self.language = Language(tscsharp.language())
@@ -22,13 +22,13 @@ class CSharpParser(BaseParser):
     
     def parse_file(self, file_path: str) -> Dict[str, Any]:
         """
-        Parse a C# file and extract classes and methods
+        Parse a C# file and extract classes and methods for class-method graph generation
         
         Args:
             file_path: Path to the C# file
             
         Returns:
-            Dictionary containing classes and their methods
+            Dictionary containing classes and their methods with method call relationships
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -179,10 +179,75 @@ class CSharpParser(BaseParser):
         if not method_name:
             return None
         
+        # Find method calls within this method
+        method_calls = self._find_method_calls_in_method(method_node, content)
+        
         return {
             "name": method_name,
-            "visibility": visibility
+            "visibility": visibility,
+            "method_calls": method_calls
         }
+    
+    def _find_method_calls_in_method(self, method_node, content: str) -> List[str]:
+        """
+        Find all method calls within a method body using a generic approach.
+        This is specifically designed for C# class-method graph generation.
+        For other languages (like Python), different approaches may be needed.
+        """
+        method_calls = []
+        
+        def traverse_for_calls(node):
+            """Recursively traverse the tree to find method calls"""
+            # Look for different types of method call patterns
+            if node.type in ['invocation_expression', 'method_invocation', 'call_expression']:
+                # Extract the method name from the invocation
+                call_name = self._extract_call_name_from_invocation(node, content)
+                if call_name and call_name not in method_calls:
+                    method_calls.append(call_name)
+            
+            # Also look for member access expressions that might be method calls
+            elif node.type == 'member_access_expression':
+                # Check if this member access is part of an invocation
+                parent = node.parent
+                if parent and parent.type in ['invocation_expression', 'method_invocation', 'call_expression']:
+                    call_name = self._extract_method_name_from_member_access(node, content)
+                    if call_name and call_name not in method_calls:
+                        method_calls.append(call_name)
+            
+            # Continue traversing children
+            for child in node.children:
+                traverse_for_calls(child)
+        
+        # Start traversal from the method node
+        traverse_for_calls(method_node)
+        
+        return method_calls
+    
+    def _extract_call_name_from_invocation(self, invocation_node, content: str) -> str:
+        """Extract method name from an invocation expression"""
+        # Look for the method name in the invocation
+        for child in invocation_node.children:
+            if child.type == 'identifier':
+                return content[child.start_byte:child.end_byte]
+            elif child.type == 'member_access_expression':
+                # For method calls like obj.Method(), get the last identifier
+                return self._extract_method_name_from_member_access(child, content)
+        
+        return None
+    
+    def _extract_method_name_from_member_access(self, member_access_node, content: str) -> str:
+        """Extract method name from member access expression (e.g., obj.Method)"""
+        # The method name is typically the last identifier in a member access
+        identifiers = []
+        for child in member_access_node.children:
+            if child.type == 'identifier':
+                identifiers.append(content[child.start_byte:child.end_byte])
+        
+        # Return the last identifier (the method name)
+        if identifiers:
+            return identifiers[-1]
+        
+        return None
     
     def _debug_print_tree(self, node, content: str, depth: int = 0, max_depth: int = 3):
         """Debug function to print tree structure"""

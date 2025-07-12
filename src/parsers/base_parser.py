@@ -1,5 +1,9 @@
 """
-Base parser interface for language-specific parsers
+Base parser interface for language-specific parsers.
+Different languages may have different graph structures:
+- C#/Java: Class-method graphs with method call relationships
+- Python: Module-function graphs or class-method graphs depending on code structure
+- JavaScript: Module-function graphs or prototype-based relationships
 """
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
@@ -11,13 +15,17 @@ class BaseParser(ABC):
     @abstractmethod
     def parse_file(self, file_path: str) -> Dict[str, Any]:
         """
-        Parse a single file and extract classes and methods
+        Parse a single file and extract structural elements.
+        The structure may vary by language:
+        - Object-oriented languages (C#, Java): classes and methods
+        - Functional languages: modules and functions
+        - Mixed paradigm languages (Python, JavaScript): flexible structure
         
         Args:
             file_path: Path to the file to parse
             
         Returns:
-            Dictionary containing parsed information
+            Dictionary containing parsed information with language-appropriate structure
         """
         pass
     
