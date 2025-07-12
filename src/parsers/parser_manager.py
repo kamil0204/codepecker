@@ -5,8 +5,6 @@ import os
 from typing import List, Dict, Any
 from .base_parser import BaseParser
 from .csharp_parser import CSharpParser
-# from .python_parser import PythonParser
-# from .java_parser import JavaParser
 
 
 class ParserManager:
@@ -83,6 +81,9 @@ class ParserManager:
                 # Convert relative paths to absolute paths if project_path is provided
                 if project_path and not os.path.isabs(file_path):
                     file_path = os.path.join(project_path, file_path)
+                
+                # Normalize the path to use OS-appropriate separators
+                file_path = os.path.normpath(file_path)
                 
                 files.append(file_path)
         

@@ -1,7 +1,11 @@
 """
 Debug script to test C# parser with actual file content
 """
-from parsers.csharp_parser import CSharpParser
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.parsers.csharp_parser import CSharpParser
 
 def debug_parse_file():
     parser = CSharpParser()

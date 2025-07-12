@@ -69,21 +69,18 @@ class CSharpParser(BaseParser):
     def _extract_class_info(self, class_node, content: str) -> Dict[str, Any]:
         """Extract class name and methods from a class declaration node"""
         class_name = None
+        class_visibility = "private"  # Default visibility
         methods = []
         
-        # Debug: Print the class node structure
-        # print(f"Class node type: {class_node.type}")
-        # for i, child in enumerate(class_node.children):
-        #     child_text = content[child.start_byte:child.end_byte]
-        #     print(f"  Child {i}: {child.type} = '{child_text[:50]}...'")
-        
-        # Find class name - look for the identifier that represents the class name
-        # It's usually the first identifier after modifiers
+        # Find class visibility and name
         found_class_keyword = False
         for child in class_node.children:
             child_text = content[child.start_byte:child.end_byte].strip()
             
-            if child.type == 'class' or child_text == 'class':
+            # Check for visibility modifiers
+            if child_text in ['public', 'private', 'protected', 'internal']:
+                class_visibility = child_text
+            elif child.type == 'class' or child_text == 'class':
                 found_class_keyword = True
             elif child.type == 'identifier' and found_class_keyword:
                 class_name = child_text
@@ -118,6 +115,7 @@ class CSharpParser(BaseParser):
         
         return {
             "name": class_name,
+            "visibility": class_visibility,
             "methods": methods
         }
     
