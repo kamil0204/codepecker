@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from directory_scanner import get_directory_tree, generate_text_tree
 from llm_client import generate_entrypoints_list
+from parsers.parser_manager import ParserManager
 
 
 def main():
@@ -37,8 +38,22 @@ def main():
             for entry in entrypoints_list:
                 print(f"  - {entry['entrypoint']} ({entry['type']}) in {entry['file']}")
             
-            # The entrypoints_list variable now contains the parsed JSON data
-            # that can be used for further processing
+            # Initialize parser manager
+            parser_manager = ParserManager()
+            
+            # Extract file paths from entrypoints
+            file_paths = parser_manager.extract_files_from_entrypoints(entrypoints_list, project_path)
+            print(f"\nExtracted {len(file_paths)} unique files from entrypoints")
+            
+            # Group files by language
+            grouped_files = parser_manager.group_files_by_language(file_paths)
+            print(f"Grouped files by language: {list(grouped_files.keys())}")
+            
+            # Parse files using appropriate parsers
+            parsing_results = parser_manager.parse_files_by_language(grouped_files)
+            
+            # Print results in the specified format
+            parser_manager.print_parsing_results(parsing_results)
             
         except json.JSONDecodeError as e:
             print(f"Failed to parse JSON response: {e}")
