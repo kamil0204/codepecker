@@ -14,7 +14,12 @@ A modular data ingestion tool that uses LLM to identify entry points, tree-sitte
 
 ```
 ├── ingestion.py               # Data ingestion entry point
+├── server.py                  # Web server and API
 ├── requirements.txt           # Python dependencies
+├── web/                      # Web interface
+│   ├── templates/            # HTML templates
+│   │   └── index.html        # Main dashboard
+│   └── static/               # Static assets (CSS, JS)
 ├── src/                      # Source code modules
 │   ├── core/                 # Core configuration
 │   │   └── config.py         # Environment-based settings
@@ -44,11 +49,21 @@ A modular data ingestion tool that uses LLM to identify entry points, tree-sitte
 
 ## Quick Start
 
+### 🚀 **One-Command Demo**
+```bash
+python demo.py
+```
+This will guide you through the complete workflow: data ingestion → web server → browser interface.
+
+### 📋 **Manual Setup**
+
+1. **Install Dependencies**:
 1. **Install Dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
+2. **Set Environment Variables**:
 2. **Set Environment Variables**:
    Create a `.env` file with your database configuration:
    ```env
@@ -66,6 +81,13 @@ A modular data ingestion tool that uses LLM to identify entry points, tree-sitte
    ```bash
    python ingestion.py
    ```
+
+5. **Start Web Server**:
+   ```bash
+   python server.py
+   ```
+
+6. **Open Browser**: Navigate to `http://localhost:5000`
 
 ## Database Switching
 
@@ -93,9 +115,35 @@ CompanyController (Type:Class, Visibility:Public)
     |____> GetAllCompanyNameAsync (Type:Method, Visibility:Public)
     |____> GetCompaniesAsync (Type:Method, Visibility:Public)
 ```
-   ```bash
-   python ingestion.py
-   ```
+
+## Web Server & API
+
+After running the data ingestion, you can start a web server to explore the data:
+
+```bash
+python server.py
+```
+
+This starts a Flask web server at `http://localhost:5000` with:
+
+### 🌐 **Web Interface**
+- **Interactive Dashboard**: View all classes and their methods
+- **Class Selection**: Click on any class to see its detailed graph
+- **Statistics**: Overview of total classes, methods, and method calls
+- **Responsive Design**: Works on desktop and mobile
+
+### 📡 **REST API Endpoints**
+- `GET /api/health` - Health check and database status
+- `GET /api/classes` - List all classes (entry points)
+- `GET /api/class/<name>/graph` - Get detailed graph for a specific class
+- `GET /api/graph/full` - Get complete graph data
+- `GET /api/stats` - Database statistics
+
+### 🚀 **Usage Workflow**
+1. Run `python ingestion.py` to populate the database
+2. Start `python server.py` to launch the web interface
+3. Open `http://localhost:5000` in your browser
+4. Explore your codebase interactively!
 
 ## Dependencies
 
@@ -105,3 +153,5 @@ CompanyController (Type:Class, Visibility:Public)
 - `requests` - For authentication requests
 - `neo4j` - Neo4j graph database driver
 - `python-dotenv` - Environment variable management
+- `flask` - Web server framework
+- `flask-cors` - Cross-origin resource sharing
