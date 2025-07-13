@@ -105,19 +105,20 @@ To add a new graph database (e.g., Neo4j):
    NEO4J_URI = os.getenv("CODEPECKER_NEO4J_URI", "bolt://localhost:7687")
    ```
 
-4. **No changes needed in main application code!**
+4. **No changes needed in main ingestion code!**
 
 ## Current Implementation
 
-- ✅ **SQLite**: Fully implemented and tested
-- 🚧 **Neo4j**: Interface ready, implementation pending
+- ✅ **Neo4j**: Fully implemented and tested (Default)
+- ✅ **SQLite**: Fully implemented and tested  
 - 🚧 **Memgraph**: Interface ready, implementation pending  
 - 🚧 **ArangoDB**: Interface ready, implementation pending
+- 🚧 **TigerGraph**: Interface ready, implementation pending
 
 ## Benefits
 
 1. **Easy Switching**: Change database via configuration
-2. **No Code Changes**: Main application code remains unchanged
+2. **No Code Changes**: Main ingestion code remains unchanged
 3. **Extensible**: Add new databases without modifying existing code
 4. **Backward Compatible**: Existing code continues to work
 5. **Testable**: Easy to mock different database implementations

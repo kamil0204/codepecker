@@ -1,5 +1,5 @@
 """
-Test script to simulate app.py duplicate data scenario
+Test script to simulate ingestion.py duplicate data scenario
 """
 import sys
 import os
@@ -9,11 +9,11 @@ from src.database.graph_db_factory import CallStackGraphDB
 from src.core.config import Config
 
 def test_duplicate_handling():
-    """Test handling of duplicate data like app.py might generate"""
+    """Test handling of duplicate data like ingestion.py might generate"""
     
     print("=== DUPLICATE DATA HANDLING TEST ===\n")
     
-    # Create test data that simulates what app.py might send multiple times
+    # Create test data that simulates what ingestion.py might send multiple times
     duplicate_data = {
         "csharp": {
             "Controllers/ProjectController.cs": {
@@ -50,7 +50,7 @@ def test_duplicate_handling():
         graph_db.store_parsing_results(duplicate_data)
         print("✅ First storage successful")
         
-        # Close and recreate with clear_db=False to simulate app.py behavior
+        # Close and recreate with clear_db=False to simulate ingestion.py behavior
         graph_db.close()
         graph_db = CallStackGraphDB(db_type=Config.DATABASE_TYPE, clear_db=False, **db_config)
         

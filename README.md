@@ -1,6 +1,6 @@
-# Codebase Analyzer
+# Codebase Analyzer - Data Ingestion Tool
 
-A modular tool that uses LLM to identify entry points, tree-sitter to parse code, and graph databases to store static call stack analysis.
+A modular data ingestion tool that uses LLM to identify entry points, tree-sitter to parse code, and graph databases to store static call stack analysis.
 
 ## Features
 
@@ -13,7 +13,7 @@ A modular tool that uses LLM to identify entry points, tree-sitter to parse code
 ## Project Structure
 
 ```
-├── app.py                     # Main application entry point
+├── ingestion.py               # Data ingestion entry point
 ├── requirements.txt           # Python dependencies
 ├── src/                      # Source code modules
 │   ├── core/                 # Core configuration
@@ -57,14 +57,14 @@ A modular tool that uses LLM to identify entry points, tree-sitter to parse code
    NEO4J_PASSWORD=your_password
    ```
 
-3. **Configure Target Project** in `app.py`:
+3. **Configure Target Project** in `ingestion.py`:
    ```python
    project_path = "path/to/your/csharp/project"
    ```
 
 4. **Run Analysis**:
    ```bash
-   python app.py
+   python ingestion.py
    ```
 
 ## Database Switching
@@ -94,7 +94,7 @@ CompanyController (Type:Class, Visibility:Public)
     |____> GetCompaniesAsync (Type:Method, Visibility:Public)
 ```
    ```bash
-   python app.py
+   python ingestion.py
    ```
 
 ## Dependencies

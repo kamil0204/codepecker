@@ -1,15 +1,15 @@
 # Neo4j Constraint Error Fix
 
 ## Problem
-The application was failing with a Neo4j constraint error when running `app.py`:
+The ingestion pipeline was failing with a Neo4j constraint error when running `ingestion.py`:
 ```
 neo4j.exceptions.ConstraintError: Node(21) already exists with label `Method` and properties `name` = 'GetProjectsAsync', `parent_class_name` = 'ProjectController'
 ```
 
 This occurred because:
-1. The application was using `CREATE` statements which fail on duplicate data
+1. The ingestion pipeline was using `CREATE` statements which fail on duplicate data
 2. Unique constraints were preventing duplicate method entries
-3. Re-running the application without clearing the database caused conflicts
+3. Re-running the ingestion pipeline without clearing the database caused conflicts
 
 ## Solution Implemented
 
@@ -82,7 +82,7 @@ db = CallStackGraphDB(db_type="neo4j", clear_db=False)
 - **Result**: No constraint violations, clean output
 
 ### ✅ Multiple Runs Supported
-- Application can now be run multiple times
+- Ingestion pipeline can now be run multiple times
 - Data is updated/merged instead of causing errors
 - Maintains graph consistency
 
@@ -93,7 +93,7 @@ db = CallStackGraphDB(db_type="neo4j", clear_db=False)
 
 ## Benefits of the Fix
 
-1. **Reliability**: Application won't crash on duplicate data
+1. **Reliability**: Ingestion pipeline won't crash on duplicate data
 2. **Flexibility**: Can choose between full refresh or incremental updates
 3. **Performance**: Faster subsequent runs with incremental updates
 4. **Data Integrity**: Maintains relationships while updating properties
