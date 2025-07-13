@@ -89,6 +89,75 @@ class StatsResponse(BaseModel):
     total_methods: int
     total_method_calls: int
 
+class RecursiveCallInfo(BaseModel):
+    caller_class: str
+    caller_method: str
+    callee_class: str
+    callee_method: str
+    depth: int
+
+class RecursiveMethodInfo(BaseModel):
+    name: str
+    visibility: str
+    recursive_calls: Dict[str, RecursiveCallInfo]
+    max_depth_reached: int
+
+class RecursiveCallStackResponse(BaseModel):
+    class_name: str
+    file_path: Optional[str]
+    methods: Dict[str, RecursiveMethodInfo]
+    max_depth: int
+
+class CallTreeNode(BaseModel):
+    class_name: str
+    method: str
+    visibility: str
+    file_path: Optional[str]
+    calls: List[Dict[str, str]]
+
+class CallTreeResponse(BaseModel):
+    root: Dict[str, str]
+    tree: Dict[str, List[CallTreeNode]]
+    max_depth: int
+
+class CallPathStep(BaseModel):
+    step: int
+    class_name: str
+    method: str
+    visibility: str
+    file_path: Optional[str]
+
+class CallPathResponse(BaseModel):
+    from_method: Dict[str, str]
+    to_method: Dict[str, str]
+    path: List[CallPathStep]
+    path_length: int
+
+class CallerInfo(BaseModel):
+    class_name: str
+    method: str
+    visibility: str
+    file_path: Optional[str]
+
+class ReverseCallStackResponse(BaseModel):
+    target: Dict[str, str]
+    callers: Dict[str, List[CallerInfo]]
+    max_depth: int
+
+class MethodStatistics(BaseModel):
+    class_name: str
+    method: str
+    visibility: str
+    file_path: Optional[str]
+    outgoing_calls: int
+    incoming_calls: int
+    total_calls: int
+
+class CallStatisticsResponse(BaseModel):
+    class_filter: Optional[str]
+    methods: List[MethodStatistics]
+    summary: Dict[str, int]
+
 class ErrorResponse(BaseModel):
     error: str
 
@@ -139,6 +208,15 @@ async def call_stack_page():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Call stack page not found")
+
+@app.get("/advanced-call-stack", response_class=HTMLResponse)
+async def advanced_call_stack_page():
+    """Serve the advanced call stack viewer page with recursive analysis"""
+    try:
+        with open("src/web/templates/advanced-call-stack.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Advanced call stack page not found")
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
@@ -376,6 +454,200 @@ async def get_method_call_stack(class_name: str, method_name: str):
         print(f"Error in method call-stack endpoint for {class_name}.{method_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get method call stack: {str(e)}")
 
+@app.get("/api/call-stack/{class_name}/recursive", response_model=RecursiveCallStackResponse)
+async def get_recursive_call_stack(class_name: str, max_depth: int = 10):
+    """Get complete recursive call stack for a class with configurable depth"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    if max_depth > 20:
+        raise HTTPException(status_code=400, detail="Maximum depth cannot exceed 20 to prevent performance issues")
+    
+    try:
+        result = graph_db.db.get_recursive_call_stack(class_name, max_depth)
+        
+        # Transform the result to match our response model
+        if not result:
+            raise HTTPException(status_code=404, detail="Class not found or no call stack data")
+        
+        class_info = list(result.keys())[0]
+        class_data = result[class_info]
+        
+        methods = {}
+        for method_name, method_data in class_data["methods"].items():
+            recursive_calls = {}
+            for call_key, call_info in method_data["recursive_calls"].items():
+                recursive_calls[call_key] = RecursiveCallInfo(**call_info)
+            
+            methods[method_name] = RecursiveMethodInfo(
+                name=method_name,
+                visibility=method_data["visibility"],
+                recursive_calls=recursive_calls,
+                max_depth_reached=method_data["max_depth_reached"]
+            )
+        
+        return RecursiveCallStackResponse(
+            class_name=class_info,
+            file_path=class_data["file_path"],
+            methods=methods,
+            max_depth=max_depth
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in recursive call-stack endpoint for {class_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get recursive call stack: {str(e)}")
+
+@app.get("/api/call-tree/{class_name}/{method_name}", response_model=CallTreeResponse)
+async def get_method_call_tree(class_name: str, method_name: str, max_depth: int = 5):
+    """Get hierarchical call tree for a specific method"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    if max_depth > 15:
+        raise HTTPException(status_code=400, detail="Maximum depth cannot exceed 15 for tree visualization")
+    
+    try:
+        result = graph_db.db.get_method_call_tree(class_name, method_name, max_depth)
+        
+        # Transform tree data to match response model
+        tree_data = {}
+        for depth_key, nodes in result["tree"].items():
+            tree_nodes = []
+            for node in nodes:
+                tree_nodes.append(CallTreeNode(
+                    class_name=node["class"],
+                    method=node["method"],
+                    visibility=node["visibility"],
+                    file_path=node["file_path"],
+                    calls=node["calls"]
+                ))
+            tree_data[depth_key] = tree_nodes
+        
+        return CallTreeResponse(
+            root=result["root"],
+            tree=tree_data,
+            max_depth=result["max_depth"]
+        )
+    
+    except Exception as e:
+        print(f"Error in call-tree endpoint for {class_name}.{method_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get call tree: {str(e)}")
+
+@app.get("/api/call-path", response_model=CallPathResponse)
+async def get_method_call_path(
+    from_class: str, 
+    from_method: str, 
+    to_class: str, 
+    to_method: str, 
+    max_depth: int = 10
+):
+    """Find all paths between two specific methods"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    if max_depth > 20:
+        raise HTTPException(status_code=400, detail="Maximum depth cannot exceed 20")
+    
+    try:
+        path_steps = graph_db.db.get_method_call_path(from_class, from_method, to_class, to_method, max_depth)
+        
+        if not path_steps:
+            raise HTTPException(status_code=404, detail="No path found between the specified methods")
+        
+        # Transform path steps to match response model
+        path = []
+        for step in path_steps:
+            path.append(CallPathStep(
+                step=step["step"],
+                class_name=step["class"],
+                method=step["method"],
+                visibility=step["visibility"],
+                file_path=step["file_path"]
+            ))
+        
+        return CallPathResponse(
+            from_method={"class": from_class, "method": from_method},
+            to_method={"class": to_class, "method": to_method},
+            path=path,
+            path_length=len(path)
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in call-path endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get call path: {str(e)}")
+
+@app.get("/api/reverse-call-stack/{class_name}/{method_name}", response_model=ReverseCallStackResponse)
+async def get_reverse_call_stack(class_name: str, method_name: str, max_depth: int = 5):
+    """Find what methods call into this method (reverse lookup)"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    if max_depth > 15:
+        raise HTTPException(status_code=400, detail="Maximum depth cannot exceed 15")
+    
+    try:
+        result = graph_db.db.get_reverse_call_stack(class_name, method_name, max_depth)
+        
+        # Transform callers data to match response model
+        callers = {}
+        for depth_key, caller_list in result["callers"].items():
+            transformed_callers = []
+            for caller in caller_list:
+                transformed_callers.append(CallerInfo(
+                    class_name=caller["class"],
+                    method=caller["method"],
+                    visibility=caller["visibility"],
+                    file_path=caller["file_path"]
+                ))
+            callers[depth_key] = transformed_callers
+        
+        return ReverseCallStackResponse(
+            target=result["target"],
+            callers=callers,
+            max_depth=result["max_depth"]
+        )
+    
+    except Exception as e:
+        print(f"Error in reverse call-stack endpoint for {class_name}.{method_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get reverse call stack: {str(e)}")
+
+@app.get("/api/call-statistics", response_model=CallStatisticsResponse)
+@app.get("/api/call-statistics/{class_name}", response_model=CallStatisticsResponse)
+async def get_call_statistics(class_name: Optional[str] = None):
+    """Get detailed call statistics for analysis"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    try:
+        result = graph_db.db.get_call_statistics(class_name)
+        
+        # Transform methods data to match response model
+        methods = []
+        for method in result["methods"]:
+            methods.append(MethodStatistics(
+                class_name=method["class"],
+                method=method["method"],
+                visibility=method["visibility"],
+                file_path=method["file_path"],
+                outgoing_calls=method["outgoing_calls"],
+                incoming_calls=method["incoming_calls"],
+                total_calls=method["total_calls"]
+            ))
+        
+        return CallStatisticsResponse(
+            class_filter=result["class_filter"],
+            methods=methods,
+            summary=result["summary"]
+        )
+    
+    except Exception as e:
+        print(f"Error in call-statistics endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get call statistics: {str(e)}")
+
 # TODO: Add NetworkX-based graph visualization endpoints
 # 
 # Priority: HIGH - Interactive graph UI layer for visual drill-down experience
@@ -419,11 +691,18 @@ def main():
     print("📊 API endpoints available:")
     print("   GET / - Web interface")
     print("   GET /call-stack - Call stack viewer")
+    print("   GET /advanced-call-stack - Advanced recursive call stack viewer")
     print("   GET /api/health - Health check")
     print("   GET /api/classes - List all classes")
     print("   GET /api/class/{name}/graph - Get class graph")
     print("   GET /api/call-stack/{name} - Get call stack for class")
     print("   GET /api/call-stack/{name}/{method} - Get nested call stack for method")
+    print("   GET /api/call-stack/{name}/recursive?max_depth=10 - Get recursive call stack")
+    print("   GET /api/call-tree/{name}/{method}?max_depth=5 - Get hierarchical call tree")
+    print("   GET /api/call-path?from_class=A&from_method=B&to_class=C&to_method=D - Find call paths")
+    print("   GET /api/reverse-call-stack/{name}/{method} - Get reverse call stack (who calls this)")
+    print("   GET /api/call-statistics - Get call statistics for all classes")
+    print("   GET /api/call-statistics/{name} - Get call statistics for specific class")
     print("   GET /api/graph/full - Get full graph")
     print("   GET /api/stats - Database statistics")
     print("   GET /docs - Swagger UI documentation")

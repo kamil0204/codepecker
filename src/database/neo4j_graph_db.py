@@ -2,7 +2,7 @@
 Neo4j implementation of the graph database interface
 """
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from neo4j import GraphDatabase
 from .graph_db_interface import GraphDatabaseInterface
 
@@ -322,3 +322,300 @@ class Neo4jGraphDB(GraphDatabaseInterface):
         """Clean up database connection"""
         if self.driver:
             self.driver.close()
+    
+    def get_recursive_call_stack(self, class_name: str, max_depth: int = 10) -> Dict[str, Any]:
+        """Get complete call stack with configurable depth (all outgoing calls from class methods)"""
+        call_stack = {}
+        
+        with self.driver.session() as session:
+            # First, get basic class and method information
+            base_query = """
+            MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method)
+            RETURN c.name as class_name, c.file_path as file_path,
+                   m.name as method_name, m.visibility as method_visibility
+            ORDER BY method_name
+            """
+            
+            base_result = session.run(base_query, class_name=class_name)
+            
+            for record in base_result:
+                cls_name = record["class_name"]
+                file_path = record["file_path"]
+                method_name = record["method_name"]
+                method_visibility = record["method_visibility"]
+                
+                # Initialize class structure
+                if cls_name not in call_stack:
+                    call_stack[cls_name] = {
+                        "file_path": file_path,
+                        "methods": {}
+                    }
+                
+                # Initialize method structure
+                if method_name not in call_stack[cls_name]["methods"]:
+                    call_stack[cls_name]["methods"][method_name] = {
+                        "visibility": method_visibility,
+                        "recursive_calls": {},
+                        "max_depth_reached": max_depth
+                    }
+            
+            # If no methods found, return the empty structure
+            if not call_stack:
+                return {}
+            
+            # Now get the call chains for each method
+            calls_query = """
+            MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method {name: $method_name})
+            MATCH path = (m)-[:METHOD_CALL*1..$max_depth]->(target:Method)
+            WITH nodes(path) as call_chain
+            UNWIND range(0, size(call_chain)-1) as i
+            WITH call_chain[i] as method_at_depth, i as depth
+            MATCH (method_at_depth)<-[:HAS_METHOD]-(method_class:Class)
+            RETURN method_at_depth.name as called_method,
+                   method_class.name as called_class,
+                   depth
+            ORDER BY depth, called_class, called_method
+            """
+            
+            # Get calls for each method
+            for cls_name in call_stack:
+                for method_name in call_stack[cls_name]["methods"]:
+                    calls_result = session.run(calls_query, 
+                                             class_name=class_name, 
+                                             method_name=method_name, 
+                                             max_depth=max_depth)
+                    
+                    for call_record in calls_result:
+                        depth = call_record["depth"]
+                        called_class = call_record["called_class"]
+                        called_method = call_record["called_method"]
+                        
+                        call_key = f"depth_{depth}_{called_class}.{called_method}"
+                        
+                        call_stack[cls_name]["methods"][method_name]["recursive_calls"][call_key] = {
+                            "caller_class": class_name,
+                            "caller_method": method_name,
+                            "callee_class": called_class,
+                            "callee_method": called_method,
+                            "depth": depth
+                        }
+        
+        return call_stack
+        
+        return call_stack
+
+    def get_method_call_tree(self, class_name: str, method_name: str, max_depth: int = 5) -> Dict[str, Any]:
+        """Get hierarchical call tree for a specific method with cycle detection"""
+        query = """
+        MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(root:Method {name: $method_name})
+        CALL {
+            WITH root
+            MATCH path = (root)-[:METHOD_CALL*0..$max_depth]->(target:Method)
+            WHERE ALL(node IN nodes(path) WHERE single(x IN nodes(path) WHERE x = node))
+            WITH nodes(path) as call_path, length(path) as path_depth
+            UNWIND range(0, size(call_path)-1) as i
+            WITH call_path[i] as method_node, i as depth, path_depth
+            MATCH (method_node)<-[:HAS_METHOD]-(method_class:Class)
+            OPTIONAL MATCH (method_node)-[:METHOD_CALL]->(next_method:Method)<-[:HAS_METHOD]-(next_class:Class)
+            WHERE (depth < path_depth)
+            RETURN method_class.name as class_name, method_class.file_path as class_file,
+                   method_node.name as method_name, method_node.visibility as method_visibility,
+                   next_class.name as next_class, next_method.name as next_method,
+                   depth
+        }
+        RETURN class_name, class_file, method_name, method_visibility,
+               next_class, next_method, depth
+        ORDER BY depth, class_name, method_name
+        """
+        
+        call_tree = {
+            "root": {"class": class_name, "method": method_name},
+            "tree": {},
+            "max_depth": max_depth
+        }
+        
+        with self.driver.session() as session:
+            result = session.run(query, class_name=class_name, method_name=method_name, max_depth=max_depth)
+            
+            for record in result:
+                depth = record["depth"]
+                current_class = record["class_name"]
+                current_method = record["method_name"]
+                current_visibility = record["method_visibility"]
+                next_class = record["next_class"]
+                next_method = record["next_method"]
+                
+                # Build tree structure
+                depth_key = f"depth_{depth}"
+                if depth_key not in call_tree["tree"]:
+                    call_tree["tree"][depth_key] = []
+                
+                node_info = {
+                    "class": current_class,
+                    "method": current_method,
+                    "visibility": current_visibility,
+                    "file_path": record["class_file"],
+                    "calls": []
+                }
+                
+                if next_class and next_method:
+                    node_info["calls"].append({
+                        "class": next_class,
+                        "method": next_method
+                    })
+                
+                call_tree["tree"][depth_key].append(node_info)
+        
+        return call_tree
+
+    def get_method_call_path(self, from_class: str, from_method: str, to_class: str, to_method: str, max_depth: int = 10) -> List[Dict]:
+        """Find all paths between two specific methods"""
+        query = """
+        MATCH (from_class:Class {name: $from_class})-[:HAS_METHOD]->(from_method:Method {name: $from_method})
+        MATCH (to_class:Class {name: $to_class})-[:HAS_METHOD]->(to_method:Method {name: $to_method})
+        MATCH path = shortestPath((from_method)-[:METHOD_CALL*1..$max_depth]->(to_method))
+        WITH nodes(path) as call_path
+        UNWIND range(0, size(call_path)-1) as i
+        WITH call_path[i] as method_node, i as step
+        MATCH (method_node)<-[:HAS_METHOD]-(method_class:Class)
+        RETURN method_class.name as class_name, method_class.file_path as class_file,
+               method_node.name as method_name, method_node.visibility as method_visibility,
+               step
+        ORDER BY step
+        """
+        
+        paths = []
+        
+        with self.driver.session() as session:
+            result = session.run(query, 
+                               from_class=from_class, from_method=from_method,
+                               to_class=to_class, to_method=to_method,
+                               max_depth=max_depth)
+            
+            for record in result:
+                paths.append({
+                    "step": record["step"],
+                    "class": record["class_name"],
+                    "method": record["method_name"],
+                    "visibility": record["method_visibility"],
+                    "file_path": record["class_file"]
+                })
+        
+        return paths
+
+    def get_reverse_call_stack(self, class_name: str, method_name: str, max_depth: int = 5) -> Dict[str, Any]:
+        """Find what methods call into this method (reverse lookup)"""
+        query = """
+        MATCH (target_class:Class {name: $class_name})-[:HAS_METHOD]->(target_method:Method {name: $method_name})
+        CALL {
+            WITH target_method
+            MATCH path = (caller:Method)-[:METHOD_CALL*1..$max_depth]->(target_method)
+            WHERE ALL(node IN nodes(path) WHERE single(x IN nodes(path) WHERE x = node))
+            WITH nodes(path) as reverse_path
+            UNWIND range(0, size(reverse_path)-1) as i
+            WITH reverse_path[i] as method_node, i as depth
+            MATCH (method_node)<-[:HAS_METHOD]-(method_class:Class)
+            RETURN method_class.name as caller_class, method_class.file_path as caller_file,
+                   method_node.name as caller_method, method_node.visibility as caller_visibility,
+                   depth
+        }
+        RETURN caller_class, caller_file, caller_method, caller_visibility, depth
+        ORDER BY depth, caller_class, caller_method
+        """
+        
+        reverse_stack = {
+            "target": {"class": class_name, "method": method_name},
+            "callers": {},
+            "max_depth": max_depth
+        }
+        
+        with self.driver.session() as session:
+            result = session.run(query, class_name=class_name, method_name=method_name, max_depth=max_depth)
+            
+            for record in result:
+                depth = record["depth"]
+                caller_class = record["caller_class"]
+                caller_method = record["caller_method"]
+                caller_visibility = record["caller_visibility"]
+                caller_file = record["caller_file"]
+                
+                depth_key = f"depth_{depth}"
+                if depth_key not in reverse_stack["callers"]:
+                    reverse_stack["callers"][depth_key] = []
+                
+                reverse_stack["callers"][depth_key].append({
+                    "class": caller_class,
+                    "method": caller_method,
+                    "visibility": caller_visibility,
+                    "file_path": caller_file
+                })
+        
+        return reverse_stack
+
+    def get_call_statistics(self, class_name: str = None) -> Dict[str, Any]:
+        """Get detailed call statistics for analysis"""
+        if class_name:
+            query = """
+            MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method)
+            OPTIONAL MATCH (m)-[call:METHOD_CALL]->()
+            WITH c, m, count(call) as outgoing_calls
+            OPTIONAL MATCH ()-[incoming:METHOD_CALL]->(m)
+            WITH c, m, outgoing_calls, count(incoming) as incoming_calls
+            RETURN c.name as class_name, c.file_path as class_file,
+                   m.name as method_name, m.visibility as method_visibility,
+                   outgoing_calls, incoming_calls,
+                   (outgoing_calls + incoming_calls) as total_calls
+            ORDER BY total_calls DESC, outgoing_calls DESC
+            """
+            params = {"class_name": class_name}
+        else:
+            query = """
+            MATCH (c:Class)-[:HAS_METHOD]->(m:Method)
+            OPTIONAL MATCH (m)-[call:METHOD_CALL]->()
+            WITH c, m, count(call) as outgoing_calls
+            OPTIONAL MATCH ()-[incoming:METHOD_CALL]->(m)
+            WITH c, m, outgoing_calls, count(incoming) as incoming_calls
+            RETURN c.name as class_name, c.file_path as class_file,
+                   m.name as method_name, m.visibility as method_visibility,
+                   outgoing_calls, incoming_calls,
+                   (outgoing_calls + incoming_calls) as total_calls
+            ORDER BY total_calls DESC, outgoing_calls DESC
+            LIMIT 50
+            """
+            params = {}
+        
+        statistics = {
+            "class_filter": class_name,
+            "methods": [],
+            "summary": {
+                "total_methods": 0,
+                "methods_with_calls": 0,
+                "methods_called_by_others": 0,
+                "total_call_relationships": 0
+            }
+        }
+        
+        with self.driver.session() as session:
+            result = session.run(query, **params)
+            
+            for record in result:
+                method_stat = {
+                    "class": record["class_name"],
+                    "method": record["method_name"],
+                    "visibility": record["method_visibility"],
+                    "file_path": record["class_file"],
+                    "outgoing_calls": record["outgoing_calls"],
+                    "incoming_calls": record["incoming_calls"],
+                    "total_calls": record["total_calls"]
+                }
+                statistics["methods"].append(method_stat)
+                
+                # Update summary
+                statistics["summary"]["total_methods"] += 1
+                if record["outgoing_calls"] > 0:
+                    statistics["summary"]["methods_with_calls"] += 1
+                if record["incoming_calls"] > 0:
+                    statistics["summary"]["methods_called_by_others"] += 1
+                statistics["summary"]["total_call_relationships"] += record["total_calls"]
+        
+        return statistics
