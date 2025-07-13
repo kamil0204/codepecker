@@ -6,10 +6,11 @@ The codebase analyzer now supports a modular graph database architecture that al
 
 ```
 GraphDatabaseInterface (Abstract)
-    ├── SQLiteGraphDB (Implemented)
-    ├── Neo4jGraphDB (Placeholder)
-    ├── MemgraphGraphDB (Placeholder)
-    └── ArangoDBGraphDB (Placeholder)
+    ├── Neo4jGraphDB (Implemented) ⭐ Default - neo4j_graph_db.py
+    ├── SQLiteGraphDB (Implemented) - sqlite_graph_db.py
+    ├── MemgraphGraphDB (Placeholder) - future_graph_dbs.py
+    ├── ArangoDBGraphDB (Placeholder) - future_graph_dbs.py
+    └── TigerGraphDB (Placeholder) - future_graph_dbs.py
 
 GraphDatabaseFactory
     └── Creates database instances based on configuration
@@ -20,34 +21,48 @@ CallStackGraphDB (Wrapper)
 
 ## Files Structure
 
+## Files Structure
+
 - `graph_db_interface.py` - Abstract interface defining all database operations
-- `sqlite_graph_db.py` - SQLite implementation (currently active)
+- `neo4j_graph_db.py` - Neo4j implementation (current default)
+- `sqlite_graph_db.py` - SQLite implementation (alternative)
 - `graph_db_factory.py` - Factory pattern for creating database instances
 - `config.py` - Configuration management for different databases
-- `future_graph_dbs.py` - Placeholder implementations for other databases
+- `future_graph_dbs.py` - Placeholder implementations for other databases (Memgraph, ArangoDB, TigerGraph)
 
 ## Usage Examples
 
-### 1. Using Default Configuration (SQLite)
+### 1. Using Default Configuration (Neo4j)
 ```python
 from graph_db_factory import CallStackGraphDB
 
-# Uses SQLite by default
+# Uses Neo4j by default (reads from .env file)
 graph_db = CallStackGraphDB()
 ```
 
 ### 2. Specifying Database Type
 ```python
-# SQLite with custom path
-graph_db = CallStackGraphDB(db_type="sqlite", db_path="custom.db")
+# Neo4j with custom connection
+graph_db = CallStackGraphDB(
+    db_type="neo4j", 
+    uri="bolt://localhost:7687",
+    username="neo4j", 
+    password="your_password"
+)
 
-# Future: Neo4j
-# graph_db = CallStackGraphDB(db_type="neo4j", uri="bolt://localhost:7687")
+# SQLite alternative
+graph_db = CallStackGraphDB(db_type="sqlite", db_path="custom.db")
 ```
 
 ### 3. Using Environment Variables
 ```bash
-# Switch to different databases via environment
+# Neo4j configuration (in .env file)
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_password
+
+# Or switch database type
+CODEPECKER_DB_TYPE=sqlite  # to use SQLite instead
 export CODEPECKER_DB_TYPE=sqlite
 export CODEPECKER_SQLITE_PATH=/path/to/database.db
 

@@ -3,21 +3,26 @@ Configuration settings for the codebase analyzer
 """
 import os
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class Config:
     """Configuration class for codebase analyzer settings"""
     
-    # Database configuration
-    DATABASE_TYPE = os.getenv("CODEPECKER_DB_TYPE", "sqlite")  # sqlite, neo4j, memgraph, arangodb
+    # Database configuration - default to Neo4j now
+    DATABASE_TYPE = os.getenv("CODEPECKER_DB_TYPE", "neo4j")  # neo4j, sqlite, memgraph, arangodb
     
     # SQLite specific settings
     SQLITE_DB_PATH = os.getenv("CODEPECKER_SQLITE_PATH", "call_stack_graph.db")
     
-    # Neo4j specific settings
-    NEO4J_URI = os.getenv("CODEPECKER_NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USERNAME = os.getenv("CODEPECKER_NEO4J_USER", "neo4j")
-    NEO4J_PASSWORD = os.getenv("CODEPECKER_NEO4J_PASSWORD", "password")
+    # Neo4j specific settings - read from .env file
+    NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
+    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+    NEO4J_CLEAR_DB = os.getenv("NEO4J_CLEAR_DB", "true").lower() == "true"
     
     # Memgraph specific settings
     MEMGRAPH_HOST = os.getenv("CODEPECKER_MEMGRAPH_HOST", "localhost")
@@ -39,7 +44,8 @@ class Config:
             return {
                 "uri": cls.NEO4J_URI,
                 "username": cls.NEO4J_USERNAME,
-                "password": cls.NEO4J_PASSWORD
+                "password": cls.NEO4J_PASSWORD,
+                "clear_db": cls.NEO4J_CLEAR_DB
             }
         elif db_type == "memgraph":
             return {

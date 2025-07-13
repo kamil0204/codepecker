@@ -1,9 +1,10 @@
 """
 Factory for creating graph database instances
 """
-from typing import Dict, Any
+from typing import Dict, Any, Union
 from .graph_db_interface import GraphDatabaseInterface
 from .sqlite_graph_db import SQLiteGraphDB
+from .neo4j_graph_db import Neo4jGraphDB
 
 
 class GraphDatabaseFactory:
@@ -27,9 +28,14 @@ class GraphDatabaseFactory:
             db_path = kwargs.get("db_path", "call_stack_graph.db")
             return SQLiteGraphDB(db_path=db_path)
         
+        elif db_type == "neo4j":
+            uri = kwargs.get("uri", "bolt://localhost:7687")
+            username = kwargs.get("username", "neo4j")
+            password = kwargs.get("password", "password")
+            clear_db = kwargs.get("clear_db", True)
+            return Neo4jGraphDB(uri=uri, username=username, password=password, clear_db=clear_db)
+        
         # Future implementations can be added here:
-        # elif db_type == "neo4j":
-        #     return Neo4jGraphDB(**kwargs)
         # elif db_type == "memgraph":
         #     return MemgraphGraphDB(**kwargs)
         # elif db_type == "arangodb":
@@ -41,7 +47,7 @@ class GraphDatabaseFactory:
     @staticmethod
     def get_supported_databases() -> list:
         """Get list of supported database types"""
-        return ["sqlite"]  # Add more as they're implemented
+        return ["sqlite", "neo4j"]  # Add more as they're implemented
 
 
 # Backward compatibility wrapper
@@ -64,13 +70,17 @@ class CallStackGraphDB:
         """Initialize the database schema (for backward compatibility)"""
         self.db.initialize()
     
-    def add_class(self, class_name: str, file_path: str, visibility: str = "Private") -> int:
+    def add_class(self, class_name: str, file_path: str, visibility: str = "Private") -> Union[int, str]:
         """Add a class node to the graph"""
         return self.db.add_class(class_name, file_path, visibility)
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: int) -> int:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str]) -> Union[int, str]:
         """Add a method node to the graph under a class"""
         return self.db.add_method(method_name, visibility, parent_class_id)
+    
+    def add_method_call(self, method_id: Union[int, str], called_method_name: str):
+        """Add a method call relationship"""
+        return self.db.add_method_call(method_id, called_method_name)
     
     def store_parsing_results(self, parsing_results: Dict[str, Dict[str, Any]]):
         """Store the parsing results in the graph database"""

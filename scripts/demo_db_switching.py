@@ -15,6 +15,14 @@ def demo_database_switching():
     # Demo 1: Using factory directly
     print("1. Using GraphDatabaseFactory directly:")
     
+    # Create Neo4j database (now default)
+    neo4j_db = GraphDatabaseFactory.create_database("neo4j", 
+        uri="bolt://localhost:7687", 
+        username="neo4j", 
+        password="your_password"
+    )
+    print(f"   Created Neo4j database: {type(neo4j_db).__name__}")
+    
     # Create SQLite database
     sqlite_db = GraphDatabaseFactory.create_database("sqlite", db_path="demo_sqlite.db")
     print(f"   Created SQLite database: {type(sqlite_db).__name__}")
@@ -26,16 +34,24 @@ def demo_database_switching():
     # Demo 2: Using wrapper with configuration
     print("\n2. Using CallStackGraphDB wrapper:")
     
-    # SQLite (default)
-    db1 = CallStackGraphDB(db_type="sqlite", db_path="demo1.db")
+    # Neo4j (now default)
+    db1 = CallStackGraphDB(db_type="neo4j", 
+        uri="bolt://localhost:7687", 
+        username="neo4j", 
+        password="your_password"
+    )
     print(f"   Created: {type(db1.db).__name__}")
+    
+    # SQLite (alternative)
+    db2 = CallStackGraphDB(db_type="sqlite", db_path="demo1.db")
+    print(f"   Created: {type(db2.db).__name__}")
     
     # Demo 3: Using environment variables
     print("\n3. Environment variable configuration:")
-    print("   Set CODEPECKER_DB_TYPE=sqlite (current default)")
-    print("   Set CODEPECKER_SQLITE_PATH=custom_path.db (for custom SQLite path)")
-    print("\n   Future examples:")
-    print("   Set CODEPECKER_DB_TYPE=neo4j (to switch to Neo4j)")
+    print("   Set CODEPECKER_DB_TYPE=neo4j (current default)")
+    print("   Set NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD in .env file")
+    print("\n   Alternative examples:")
+    print("   Set CODEPECKER_DB_TYPE=sqlite (to switch to SQLite)")
     print("   Set CODEPECKER_DB_TYPE=memgraph (to switch to Memgraph)")
     print("   Set CODEPECKER_DB_TYPE=arangodb (to switch to ArangoDB)")
     
@@ -48,8 +64,10 @@ def demo_database_switching():
     print("   d) No changes needed in main application code!")
     
     # Cleanup
+    neo4j_db.close()
     sqlite_db.close()
     db1.close()
+    db2.close()
     
     # Remove demo files
     for file in ["demo_sqlite.db", "demo1.db"]:

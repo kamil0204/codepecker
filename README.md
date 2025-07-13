@@ -49,11 +49,12 @@ A modular tool that uses LLM to identify entry points, tree-sitter to parse code
    pip install -r requirements.txt
    ```
 
-2. **Set Environment Variables** (for Intel's API):
-   ```bash
-   APIGEE_AUTH_URL=<your_auth_url>
-   APIGEE_CLIENT_ID=<your_client_id>
-   APIGEE_CLIENT_SECRET=<your_client_secret>
+2. **Set Environment Variables**:
+   Create a `.env` file with your database configuration:
+   ```env
+   NEO4J_URI=bolt://localhost:7687
+   NEO4J_USERNAME=neo4j
+   NEO4J_PASSWORD=your_password
    ```
 
 3. **Configure Target Project** in `app.py`:
@@ -71,11 +72,12 @@ A modular tool that uses LLM to identify entry points, tree-sitter to parse code
 The tool supports multiple graph database backends through a factory pattern:
 
 ```python
-# Use SQLite (default)
-db = CallStackGraphDB(db_type="sqlite", db_name="my_graph.db")
+# Use Neo4j (default)
+db = CallStackGraphDB(db_type="neo4j", uri="bolt://localhost:7687", 
+                     username="neo4j", password="your_password")
 
-# Future: Use Neo4j
-db = CallStackGraphDB(db_type="neo4j", connection_string="bolt://localhost:7687")
+# Use SQLite (alternative)
+db = CallStackGraphDB(db_type="sqlite", db_path="my_graph.db")
 ```
 
 ## Output Format
@@ -101,3 +103,5 @@ CompanyController (Type:Class, Visibility:Public)
 - `openai` - For LLM integration
 - `httpx` - HTTP client with proxy support
 - `requests` - For authentication requests
+- `neo4j` - Neo4j graph database driver
+- `python-dotenv` - Environment variable management
