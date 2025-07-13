@@ -5,7 +5,7 @@ This script performs the complete data ingestion process:
 1. Scans project directory structure
 2. Uses LLM to identify entry points
 3. Parses code files using tree-sitter
-4. Stores parsed data in graph database (Neo4j/SQLite)
+4. Stores parsed data in Neo4j graph database
 
 Usage: python ingestion.py
 Configure the target project path in the main() function.

@@ -1,13 +1,12 @@
 # Graph Database Architecture
 
-The codebase analyzer now supports a modular graph database architecture that allows easy switching between different database implementations.
+The codebase analyzer uses a modular graph database architecture focused on Neo4j for optimal graph operations.
 
 ## Architecture Overview
 
 ```
 GraphDatabaseInterface (Abstract)
-    ├── Neo4jGraphDB (Implemented) ⭐ Default - neo4j_graph_db.py
-    ├── SQLiteGraphDB (Implemented) - sqlite_graph_db.py
+    ├── Neo4jGraphDB (Implemented) ⭐ Primary - neo4j_graph_db.py
     ├── MemgraphGraphDB (Placeholder) - future_graph_dbs.py
     ├── ArangoDBGraphDB (Placeholder) - future_graph_dbs.py
     └── TigerGraphDB (Placeholder) - future_graph_dbs.py
@@ -21,13 +20,10 @@ CallStackGraphDB (Wrapper)
 
 ## Files Structure
 
-## Files Structure
-
 - `graph_db_interface.py` - Abstract interface defining all database operations
-- `neo4j_graph_db.py` - Neo4j implementation (current default)
-- `sqlite_graph_db.py` - SQLite implementation (alternative)
+- `neo4j_graph_db.py` - Neo4j implementation (primary)
 - `graph_db_factory.py` - Factory pattern for creating database instances
-- `config.py` - Configuration management for different databases
+- `config.py` - Configuration management for databases
 - `future_graph_dbs.py` - Placeholder implementations for other databases (Memgraph, ArangoDB, TigerGraph)
 
 ## Usage Examples
@@ -49,9 +45,6 @@ graph_db = CallStackGraphDB(
     username="neo4j", 
     password="your_password"
 )
-
-# SQLite alternative
-graph_db = CallStackGraphDB(db_type="sqlite", db_path="custom.db")
 ```
 
 ### 3. Using Environment Variables
@@ -61,14 +54,9 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
 
-# Or switch database type
-CODEPECKER_DB_TYPE=sqlite  # to use SQLite instead
-export CODEPECKER_DB_TYPE=sqlite
-export CODEPECKER_SQLITE_PATH=/path/to/database.db
-
-# Future examples:
-# export CODEPECKER_DB_TYPE=neo4j
-# export CODEPECKER_NEO4J_URI=bolt://localhost:7687
+# Future examples for other databases:
+# export CODEPECKER_DB_TYPE=memgraph
+# export CODEPECKER_DB_TYPE=arangodb
 ```
 
 ### 4. Using Factory Directly
@@ -76,16 +64,19 @@ export CODEPECKER_SQLITE_PATH=/path/to/database.db
 from graph_db_factory import GraphDatabaseFactory
 
 # Create specific database instance
-db = GraphDatabaseFactory.create_database("sqlite", db_path="test.db")
+db = GraphDatabaseFactory.create_database("neo4j", 
+    uri="bolt://localhost:7687", 
+    username="neo4j", 
+    password="password")
 ```
 
 ## Adding New Database Implementations
 
-To add a new graph database (e.g., Neo4j):
+To add a new graph database (e.g., Memgraph):
 
 1. **Implement the Interface**:
    ```python
-   class Neo4jGraphDB(GraphDatabaseInterface):
+   class MemgraphGraphDB(GraphDatabaseInterface):
        def initialize(self): ...
        def add_class(self, ...): ...
        def add_method(self, ...): ...
@@ -95,29 +86,28 @@ To add a new graph database (e.g., Neo4j):
 2. **Update Factory**:
    ```python
    # In GraphDatabaseFactory.create_database()
-   elif db_type == "neo4j":
-       return Neo4jGraphDB(**kwargs)
+   elif db_type == "memgraph":
+       return MemgraphGraphDB(**kwargs)
    ```
 
 3. **Add Configuration**:
    ```python
    # In Config class
-   NEO4J_URI = os.getenv("CODEPECKER_NEO4J_URI", "bolt://localhost:7687")
+   MEMGRAPH_URI = os.getenv("CODEPECKER_MEMGRAPH_URI", "bolt://localhost:7687")
    ```
 
 4. **No changes needed in main ingestion code!**
 
 ## Current Implementation
 
-- ✅ **Neo4j**: Fully implemented and tested (Default)
-- ✅ **SQLite**: Fully implemented and tested  
+- ✅ **Neo4j**: Fully implemented and tested (Primary)
 - 🚧 **Memgraph**: Interface ready, implementation pending  
 - 🚧 **ArangoDB**: Interface ready, implementation pending
 - 🚧 **TigerGraph**: Interface ready, implementation pending
 
 ## Benefits
 
-1. **Easy Switching**: Change database via configuration
+1. **Focused on Neo4j**: Optimized for graph database operations
 2. **No Code Changes**: Main ingestion code remains unchanged
 3. **Extensible**: Add new databases without modifying existing code
 4. **Backward Compatible**: Existing code continues to work

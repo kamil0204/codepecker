@@ -25,7 +25,7 @@ A modular data ingestion tool that uses LLM to identify entry points, tree-sitte
 │   │   └── config.py         # Environment-based settings
 │   ├── database/             # Graph database implementations
 │   │   ├── graph_db_interface.py      # Abstract interface
-│   │   ├── sqlite_graph_db.py         # SQLite implementation
+│   │   ├── neo4j_graph_db.py          # Neo4j implementation
 │   │   ├── graph_db_factory.py        # Factory pattern
 │   │   └── future_graph_dbs.py        # Example implementations
 │   ├── llm/                  # LLM integration
@@ -94,12 +94,9 @@ This will guide you through the complete workflow: data ingestion → web server
 The tool supports multiple graph database backends through a factory pattern:
 
 ```python
-# Use Neo4j (default)
+# Use Neo4j (primary database)
 db = CallStackGraphDB(db_type="neo4j", uri="bolt://localhost:7687", 
                      username="neo4j", password="your_password")
-
-# Use SQLite (alternative)
-db = CallStackGraphDB(db_type="sqlite", db_path="my_graph.db")
 ```
 
 ## Output Format

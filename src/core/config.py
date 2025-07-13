@@ -12,11 +12,8 @@ load_dotenv()
 class Config:
     """Configuration class for codebase analyzer settings"""
     
-    # Database configuration - default to Neo4j now
-    DATABASE_TYPE = os.getenv("CODEPECKER_DB_TYPE", "neo4j")  # neo4j, sqlite, memgraph, arangodb
-    
-    # SQLite specific settings
-    SQLITE_DB_PATH = os.getenv("CODEPECKER_SQLITE_PATH", "call_stack_graph.db")
+    # Database configuration - Neo4j only
+    DATABASE_TYPE = os.getenv("CODEPECKER_DB_TYPE", "neo4j")  # neo4j, memgraph, arangodb
     
     # Neo4j specific settings - read from .env file
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -38,9 +35,7 @@ class Config:
         """Get database configuration based on the selected database type"""
         db_type = cls.DATABASE_TYPE.lower()
         
-        if db_type == "sqlite":
-            return {"db_path": cls.SQLITE_DB_PATH}
-        elif db_type == "neo4j":
+        if db_type == "neo4j":
             return {
                 "uri": cls.NEO4J_URI,
                 "username": cls.NEO4J_USERNAME,
@@ -59,9 +54,9 @@ class Config:
                 "password": cls.ARANGODB_PASSWORD
             }
         else:
-            raise ValueError(f"Unsupported database type: {db_type}")
+            raise ValueError(f"Unsupported database type: {db_type}. Currently supported: neo4j")
 
 
 # Example usage:
-# To switch to Neo4j, set environment variable: CODEPECKER_DB_TYPE=neo4j
-# To use custom SQLite path: CODEPECKER_SQLITE_PATH=/custom/path/graph.db
+# Database is now Neo4j only
+# To use custom Neo4j connection: Set NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD environment variables

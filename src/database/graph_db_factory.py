@@ -3,7 +3,6 @@ Factory for creating graph database instances
 """
 from typing import Dict, Any, Union
 from .graph_db_interface import GraphDatabaseInterface
-from .sqlite_graph_db import SQLiteGraphDB
 from .neo4j_graph_db import Neo4jGraphDB
 
 
@@ -11,12 +10,12 @@ class GraphDatabaseFactory:
     """Factory class for creating graph database instances"""
     
     @staticmethod
-    def create_database(db_type: str = "sqlite", **kwargs) -> GraphDatabaseInterface:
+    def create_database(db_type: str = "neo4j", **kwargs) -> GraphDatabaseInterface:
         """
         Create a graph database instance based on the specified type
         
         Args:
-            db_type: Type of database ("sqlite", "neo4j", "memgraph", etc.)
+            db_type: Type of database ("neo4j", "memgraph", etc.)
             **kwargs: Additional arguments specific to the database type
             
         Returns:
@@ -24,11 +23,7 @@ class GraphDatabaseFactory:
         """
         db_type = db_type.lower()
         
-        if db_type == "sqlite":
-            db_path = kwargs.get("db_path", "call_stack_graph.db")
-            return SQLiteGraphDB(db_path=db_path)
-        
-        elif db_type == "neo4j":
+        if db_type == "neo4j":
             uri = kwargs.get("uri", "bolt://localhost:7687")
             username = kwargs.get("username", "neo4j")
             password = kwargs.get("password", "password")
@@ -42,12 +37,12 @@ class GraphDatabaseFactory:
         #     return ArangoDBGraphDB(**kwargs)
         
         else:
-            raise ValueError(f"Unsupported database type: {db_type}")
+            raise ValueError(f"Unsupported database type: {db_type}. Currently supported: neo4j")
     
     @staticmethod
     def get_supported_databases() -> list:
         """Get list of supported database types"""
-        return ["sqlite", "neo4j"]  # Add more as they're implemented
+        return ["neo4j"]  # Add more as they're implemented
 
 
 # Backward compatibility wrapper
@@ -56,12 +51,12 @@ class CallStackGraphDB:
     Backward compatibility wrapper for the original CallStackGraphDB class
     """
     
-    def __init__(self, db_type: str = "sqlite", **kwargs):
+    def __init__(self, db_type: str = "neo4j", **kwargs):
         """
         Initialize with specified database type
         
         Args:
-            db_type: Type of database to use ("sqlite", "neo4j", etc.)
+            db_type: Type of database to use ("neo4j", etc.)
             **kwargs: Database-specific configuration parameters
         """
         self.db = GraphDatabaseFactory.create_database(db_type, **kwargs)
