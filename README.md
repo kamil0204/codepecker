@@ -16,7 +16,7 @@ A modular data ingestion tool that uses LLM to identify entry points, tree-sitte
 ├── ingestion.py               # Data ingestion entry point
 ├── server.py                  # Web server and API
 ├── requirements.txt           # Python dependencies
-├── web/                      # Web interface
+├── src/web/                  # Web interface
 │   ├── templates/            # HTML templates
 │   │   └── index.html        # Main dashboard
 │   └── static/               # Static assets (CSS, JS)

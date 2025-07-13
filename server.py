@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="web/static"), name="static")
+app.mount("/static", StaticFiles(directory="src/web/static"), name="static")
 
 # Global database instance
 graph_db = None
@@ -126,7 +126,7 @@ async def startup_event():
 async def index():
     """Serve the main UI page"""
     try:
-        with open("web/templates/index.html", "r", encoding="utf-8") as f:
+        with open("src/web/templates/index.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Index page not found")
