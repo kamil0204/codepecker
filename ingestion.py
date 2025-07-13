@@ -14,7 +14,6 @@ import os
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-from pathlib import Path
 from src.utils.directory_scanner import get_directory_tree, generate_text_tree
 from src.llm.llm_client import generate_entrypoints_list
 from src.parsers.parser_manager import ParserManager
@@ -90,6 +89,129 @@ def parse_files_parallel(parser_manager, grouped_files, max_workers=4):
         print(f"   ✅ Completed {language}: {len(language_results)} files successfully parsed")
     
     return all_results
+
+
+def establish_method_call_relationships(graph_db, entry_point_results, remaining_results):
+    """
+    Establish relationships between method calls and their actual target methods
+    
+    Args:
+        graph_db: Graph database instance
+        entry_point_results: Parsing results from entry point files
+        remaining_results: Parsing results from remaining files
+    """
+    print("   • Building method index from all parsed classes...")
+    
+    # Combine all parsing results
+    all_results = {}
+    for lang_results in [entry_point_results, remaining_results]:
+        for language, file_results in lang_results.items():
+            if language not in all_results:
+                all_results[language] = {}
+            all_results[language].update(file_results)
+    
+    # Build a comprehensive method index: method_name -> [(class_name, file_path, method_info)]
+    method_index = {}
+    class_method_map = {}  # class_name -> {method_name: method_info}
+    
+    for language, file_results in all_results.items():
+        for file_path, file_result in file_results.items():
+            if 'error' in file_result or 'classes' not in file_result:
+                continue
+                
+            for class_info in file_result['classes']:
+                class_name = class_info['name']
+                class_method_map[class_name] = {}
+                
+                for method_info in class_info.get('methods', []):
+                    method_name = method_info['name']
+                    
+                    # Add to method index
+                    if method_name not in method_index:
+                        method_index[method_name] = []
+                    method_index[method_name].append((class_name, file_path, method_info))
+                    
+                    # Add to class method map
+                    class_method_map[class_name][method_name] = method_info
+    
+    print(f"   • Indexed {len(method_index)} unique method names across {len(class_method_map)} classes")
+    
+    # Process method calls and establish relationships
+    relationships_created = 0
+    
+    for language, file_results in all_results.items():
+        for file_path, file_result in file_results.items():
+            if 'error' in file_result or 'classes' not in file_result:
+                continue
+                
+            for class_info in file_result['classes']:
+                calling_class = class_info['name']
+                
+                for method_info in class_info.get('methods', []):
+                    calling_method = method_info['name']
+                    method_calls = method_info.get('calls', [])
+                    
+                    for called_method_name in method_calls:
+                        # Skip if calling itself (recursive calls are already handled)
+                        if called_method_name == calling_method:
+                            continue
+                            
+                        # Find potential target methods
+                        target_methods = find_target_method(
+                            called_method_name, 
+                            calling_class, 
+                            method_index, 
+                            class_method_map
+                        )
+                        
+                        # Create relationships for each target method found
+                        for target_class, target_file, target_method_info in target_methods:
+                            try:
+                                graph_db.create_method_call_relationship(
+                                    calling_class=calling_class,
+                                    calling_method=calling_method,
+                                    target_class=target_class,
+                                    target_method=called_method_name,
+                                    call_type="METHOD_CALL"
+                                )
+                                relationships_created += 1
+                                
+                                if relationships_created <= 10:  # Show first 10 for debugging
+                                    print(f"   • Created: {calling_class}.{calling_method} -> {target_class}.{called_method_name}")
+                                elif relationships_created == 11:
+                                    print("   • (Additional relationships created...)")
+                                    
+                            except Exception as e:
+                                print(f"   ⚠️  Error creating relationship {calling_class}.{calling_method} -> {target_class}.{called_method_name}: {e}")
+    
+    print(f"   • Total relationships created: {relationships_created}")
+
+
+def find_target_method(called_method_name, calling_class, method_index, class_method_map):
+    """
+    Find potential target methods for a method call
+    
+    Args:
+        called_method_name: Name of the called method
+        calling_class: Name of the class making the call
+        method_index: Dictionary of method_name -> [(class_name, file_path, method_info)]
+        class_method_map: Dictionary of class_name -> {method_name: method_info}
+    
+    Returns:
+        List of tuples: [(target_class, target_file, target_method_info)]
+    """
+    target_methods = []
+    
+    # Check if the method exists in the method index
+    if called_method_name in method_index:
+        potential_targets = method_index[called_method_name]
+        
+        # Filter out self-calls (same class)
+        for class_name, file_path, method_info in potential_targets:
+            if class_name != calling_class:  # Don't include calls within the same class
+                target_methods.append((class_name, file_path, method_info))
+    
+    return target_methods
 
 
 def main():
@@ -200,6 +322,11 @@ def main():
                 print("   • Additional data ingestion completed")
             else:
                 print("   • No additional files to process")
+
+            # Additional step: Establish method call relationships
+            print("\n🔗 Step 6: Establishing method call relationships...")
+            establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
+            print("✅ Method call relationships established")
 
             print(f"\n📈 Generated Code Structure Visualization:")
             print("="*60)

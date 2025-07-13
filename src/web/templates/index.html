@@ -41,6 +41,35 @@
             opacity: 0.9;
         }
 
+        .nav-buttons {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .nav-button {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            margin: 0 10px;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+
+        .nav-button:hover {
+            background: #218838;
+        }
+
+        .nav-button.secondary {
+            background: #17a2b8;
+        }
+
+        .nav-button.secondary:hover {
+            background: #138496;
+        }
+
         .dashboard {
             display: grid;
             grid-template-columns: 300px 1fr;
@@ -232,6 +261,11 @@
         <div class="header">
             <h1>🔍 CodePecker</h1>
             <p>Code Analysis Dashboard - Explore your codebase structure and dependencies</p>
+        </div>
+
+        <div class="nav-buttons">
+            <a href="/" class="nav-button">📊 Dashboard</a>
+            <a href="/call-stack" class="nav-button secondary">🌳 Call Stack Viewer</a>
         </div>
 
         <div class="stats" id="stats">

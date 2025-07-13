@@ -82,6 +82,19 @@ class CallStackGraphDB:
         """Add a method call relationship"""
         return self.db.add_method_call(method_id, called_method_name)
     
+    def create_method_call_relationship(self, calling_class: str, calling_method: str, 
+                                      target_class: str, target_method: str, call_type: str = "METHOD_CALL"):
+        """Create a relationship between methods in different classes"""
+        return self.db.create_method_call_relationship(calling_class, calling_method, target_class, target_method, call_type)
+    
+    def get_call_stack(self, class_name: str) -> Dict[str, Any]:
+        """Get the complete call stack for a specific class"""
+        return self.db.get_call_stack(class_name)
+    
+    def get_method_call_stack(self, class_name: str, method_name: str) -> Dict[str, Any]:
+        """Get the call stack for a specific method in a class"""
+        return self.db.get_method_call_stack(class_name, method_name)
+    
     def store_parsing_results(self, parsing_results: Dict[str, Dict[str, Any]]):
         """Store the parsing results in the graph database"""
         self.db.store_parsing_results(parsing_results)

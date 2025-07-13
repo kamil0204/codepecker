@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Stack Viewer - CodePecker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            transition: background 0.3s;
+        }
+
+        .back-button:hover {
+            background: #218838;
+        }
+
+        .content-area {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            min-height: 70vh;
+        }
+
+        .class-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .class-selector h2 {
+            margin-bottom: 15px;
+            color: #4a5568;
+        }
+
+        .class-dropdown {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+        }
+
+        .class-dropdown:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+        }
+
+        .call-stack-container {
+            margin-top: 20px;
+        }
+
+        .call-stack-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .call-tree {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        .tree-node {
+            margin: 2px 0;
+        }
+
+        .class-node {
+            color: #0066cc;
+            font-weight: bold;
+        }
+
+        .method-node {
+            color: #cc6600;
+            cursor: pointer;
+        }
+
+        .method-node:hover {
+            text-decoration: underline;
+        }
+
+        .call-node {
+            color: #009900;
+            cursor: pointer;
+        }
+
+        .call-node:hover {
+            text-decoration: underline;
+        }
+
+        .expanded-content {
+            margin-left: 20px;
+            border-left: 1px dotted #ccc;
+            padding-left: 10px;
+        }
+
+        .loading-inline {
+            font-style: italic;
+            color: #666;
+        }
+
+        .tree-indent {
+            color: #999;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌳 Call Stack Viewer</h1>
+            <p>Explore method call hierarchies for entry point classes</p>
+        </div>
+
+        <a href="/" class="back-button">← Back to Dashboard</a>
+
+        <div class="content-area">
+            <div class="class-selector">
+                <h2>Select Entry Point Class</h2>
+                <select id="classDropdown" class="class-dropdown" title="Select a class to view its call stack">
+                    <option value="">Loading classes...</option>
+                </select>
+            </div>
+
+            <div class="call-stack-container">
+                <div id="callStackContent">
+                    <div class="empty-state">
+                        <h3>📋 Select a class above</h3>
+                        <p>Choose an entry point class to view its complete call structure</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allClasses = [];
+        
+        // Load classes on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded and parsed');
+            loadClasses();
+            
+            // Add click event listener to document to handle delegated events
+            document.addEventListener('click', function(event) {
+                console.log('Click event detected:', event.target);
+                
+                // Handle method node clicks
+                if (event.target.classList.contains('method-node')) {
+                    const methodElement = event.target;
+                    const nodeId = methodElement.dataset.nodeId;
+                    const className = methodElement.dataset.class;
+                    const methodName = methodElement.dataset.method;
+                    
+                    if (nodeId && className && methodName) {
+                        console.log(`Method clicked: ${className}.${methodName}, nodeId: ${nodeId}`);
+                        toggleMethodExpand(className, methodName, nodeId, methodElement);
+                    }
+                }
+                
+                // Handle call node clicks
+                if (event.target.classList.contains('call-node')) {
+                    const callElement = event.target;
+                    const nodeId = callElement.dataset.nodeId;
+                    const className = callElement.dataset.class;
+                    const methodName = callElement.dataset.method;
+                    
+                    if (nodeId && className && methodName) {
+                        console.log(`Call clicked: ${className}.${methodName}, nodeId: ${nodeId}`);
+                        loadNestedCallStack(className, methodName, nodeId, callElement);
+                    }
+                }
+            });
+        });
+
+        // Handle class selection
+        document.getElementById('classDropdown').addEventListener('change', function() {
+            const selectedClass = this.value;
+            if (selectedClass) {
+                loadCallStack(selectedClass);
+            } else {
+                showEmptyState();
+            }
+        });
+
+        async function loadClasses() {
+            const dropdown = document.getElementById('classDropdown');
+            
+            try {
+                const response = await fetch('/api/classes');
+                const data = await response.json();
+                
+                if (data.error) {
+                    dropdown.innerHTML = '<option value="">Error loading classes</option>';
+                    return;
+                }
+
+                if (data.classes.length === 0) {
+                    dropdown.innerHTML = '<option value="">No classes found</option>';
+                    return;
+                }
+
+                allClasses = data.classes;
+                
+                // Populate dropdown
+                dropdown.innerHTML = '<option value="">Select a class...</option>';
+                data.classes.forEach(classInfo => {
+                    const option = document.createElement('option');
+                    option.value = classInfo.name;
+                    option.textContent = `${classInfo.name} (${classInfo.file_path || 'No path'})`;
+                    dropdown.appendChild(option);
+                });
+                
+            } catch (error) {
+                dropdown.innerHTML = '<option value="">Failed to load classes</option>';
+                console.error('Failed to load classes:', error);
+            }
+        }
+
+        async function loadCallStack(className) {
+            const container = document.getElementById('callStackContent');
+            
+            // Show loading state
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Building call stack for ${className}...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch(`/api/call-stack/${encodeURIComponent(className)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                    return;
+                }
+
+                renderCallStack(data, className);
+                
+            } catch (error) {
+                container.innerHTML = `<div class="error">Failed to load call stack: ${error.message}</div>`;
+            }
+        }
+
+        function renderCallStack(callStackData, className) {
+            const container = document.getElementById('callStackContent');
+            
+            if (!callStackData || Object.keys(callStackData).length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No call stack data found</h3>
+                        <p>The class "${className}" has no method call relationships in the database</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="call-stack-title">
+                    Call Stack for: ${className}
+                </div>
+                <div class="call-tree">
+            `;
+
+            html += buildTreeHTML(callStackData, className, 0);
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+
+        function buildTreeHTML(data, currentItem, depth) {
+            const indent = '│   '.repeat(depth);
+            const connector = depth > 0 ? '├── ' : '';
+            let html = '';
+
+            if (typeof data === 'object' && data !== null) {
+                // This is a class or method with children
+                html += `<div class="tree-node">`;
+                html += `<span class="tree-indent">${indent}${connector}</span>`;
+                html += `<span class="class-node">${currentItem}</span>`;
+                html += `</div>\n`;
+
+                // Process children
+                for (const [key, value] of Object.entries(data)) {
+                    if (key === 'methods') {
+                        // Handle methods
+                        for (const [methodName, methodData] of Object.entries(value)) {
+                            const methodIndent = '│   '.repeat(depth + 1);
+                            const currentClass = currentItem.replace(/'/g, "\\'"); // Escape single quotes
+                            const safeMethodName = methodName.replace(/'/g, "\\'"); // Escape single quotes
+                            const nodeId = `node-${currentClass.replace(/[^\w-]/g, '_')}-${safeMethodName.replace(/[^\w-]/g, '_')}`;
+                            
+                            // Make method names clickable if they have calls
+                            if (methodData && methodData.calls && Object.keys(methodData.calls).length > 0) {
+                                html += `<div class="tree-node">`;
+                                html += `<span class="tree-indent">${methodIndent}├── </span>`;
+                                html += `<span class="method-node" onclick="toggleMethodExpand('${currentClass}', '${safeMethodName}', '${nodeId}')" data-expanded="false">🔧 ${methodName}() ↓</span>`;
+                                html += `</div>\n`;
+                                html += `<div id="${nodeId}" class="expanded-content" style="display:none;"></div>`;
+                            } else {
+                                html += `<div class="tree-node">`;
+                                html += `<span class="tree-indent">${methodIndent}├── </span>`;
+                                html += `<span class="method-node">🔧 ${methodName}()</span>`;
+                                html += `</div>\n`;
+                            }
+
+                            // Handle method calls
+                            if (methodData && methodData.calls) {
+                                for (const [callTarget, callData] of Object.entries(methodData.calls)) {
+                                    // Create expandable call nodes
+                                    const safeClass = callData.class.replace(/'/g, "\\'"); // Escape single quotes
+                                    const safeMethod = callData.method.replace(/'/g, "\\'"); // Escape single quotes
+                                    const safeCallTarget = callTarget.replace(/'/g, "\\'"); // Escape single quotes
+                                    const callNodeId = `call-${currentClass.replace(/[^\w-]/g, '_')}-${safeMethodName.replace(/[^\w-]/g, '_')}-${safeCallTarget.replace(/[^\w-]/g, '_')}`;
+                                    
+                                    html += `<div class="tree-node">`;
+                                    html += `<span class="tree-indent">${methodIndent}│   ├── </span>`;
+                                    html += `<span class="call-node" onclick="loadNestedCallStack('${safeClass}', '${safeMethod}', '${callNodeId}')" data-expanded="false">→ ${callTarget}</span>`;
+                                    html += `</div>\n`;
+                                    html += `<div id="${callNodeId}" class="expanded-content" style="display:none;"></div>`;
+                                }
+                            }
+                        }
+                    } else if (key !== 'file_path' && key !== 'visibility') {
+                        // Handle other relationships
+                        html += buildTreeHTML(value, key, depth + 1);
+                    }
+                }
+            } else {
+                // This is a leaf node
+                html += `<div class="tree-node">`;
+                html += `<span class="tree-indent">${indent}${connector}</span>`;
+                html += `<span class="call-node">→ ${currentItem}</span>`;
+                html += `</div>\n`;
+            }
+
+            return html;
+        }
+
+        function showEmptyState() {
+            const container = document.getElementById('callStackContent');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3>📋 Select a class above</h3>
+                    <p>Choose an entry point class to view its complete call structure</p>
+                </div>
+            `;
+        }
+
+        /**
+         * Toggle the expansion state of a method to show/hide its calls
+         */
+        function toggleMethodExpand(className, methodName, nodeId, clickedElement) {
+            console.log(`Toggling method: ${className}.${methodName}, nodeId: ${nodeId}`);
+            
+            const container = document.getElementById(nodeId);
+            if (!container) {
+                console.error(`Container element not found: ${nodeId}`);
+                return;
+            }
+            
+            const isExpanded = clickedElement.getAttribute('data-expanded') === 'true';
+            
+            if (isExpanded) {
+                // Collapse
+                container.style.display = 'none';
+                clickedElement.setAttribute('data-expanded', 'false');
+                clickedElement.textContent = `🔧 ${methodName}() ↓`;
+            } else {
+                // Expand
+                container.style.display = 'block';
+                clickedElement.setAttribute('data-expanded', 'true');
+                clickedElement.textContent = `🔧 ${methodName}() ↑`;
+                
+                // If content is empty, we don't need to reload it
+                if (container.innerHTML.trim() === '') {
+                    // The content will be populated by nested call nodes, no need to load anything here
+                }
+            }
+        }
+
+        /**
+         * Load the call stack for a specific class.method combination
+         */
+        async function loadNestedCallStack(className, methodName, containerId) {
+            console.log(`Loading nested call stack: ${className}.${methodName}, containerId: ${containerId}`);
+            
+            const container = document.getElementById(containerId);
+            if (!container) {
+                console.error(`Container element not found: ${containerId}`);
+                return;
+            }
+            
+            const clickedElement = event.target;
+            const isExpanded = clickedElement.getAttribute('data-expanded') === 'true';
+            
+            if (isExpanded) {
+                // Collapse
+                container.style.display = 'none';
+                clickedElement.setAttribute('data-expanded', 'false');
+            } else {
+                // Expand
+                container.style.display = 'block';
+                clickedElement.setAttribute('data-expanded', 'true');
+                
+                // If content is empty, load it
+                if (container.innerHTML.trim() === '') {
+                    container.innerHTML = `<div class="loading-inline">Loading call stack for ${className}.${methodName}...</div>`;
+                    
+                    try {
+                        console.log(`Fetching data from: /api/call-stack/${encodeURIComponent(className)}/${encodeURIComponent(methodName)}`);
+                        const response = await fetch(`/api/call-stack/${encodeURIComponent(className)}/${encodeURIComponent(methodName)}`);
+                        const data = await response.json();
+                        console.log('Response data:', data);
+                        
+                        if (data.error) {
+                            container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                            return;
+                        }
+                        
+                        if (!data || Object.keys(data).length === 0) {
+                            container.innerHTML = `<div class="loading-inline">No further call data available</div>`;
+                            return;
+                        }
+                        
+                        // Render the nested call stack
+                        let html = '';
+                        for (const [nestedClassName, nestedClassData] of Object.entries(data)) {
+                            html += buildTreeHTML(nestedClassData, nestedClassName, 0);
+                        }
+                        
+                        container.innerHTML = html;
+                        console.log('Nested call stack rendered successfully');
+                    } catch (error) {
+                        console.error('Error loading nested call stack:', error);
+                        container.innerHTML = `<div class="error">Failed to load nested call stack: ${error.message}</div>`;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

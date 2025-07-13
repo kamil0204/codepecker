@@ -97,6 +97,125 @@ class Neo4jGraphDB(GraphDatabaseInterface):
         with self.driver.session() as session:
             session.run(query, method_id=method_id, called_method_name=called_method_name)
     
+    def create_method_call_relationship(self, calling_class: str, calling_method: str, 
+                                      target_class: str, target_method: str, call_type: str = "METHOD_CALL"):
+        """Create a relationship between methods in different classes"""
+        query = """
+        MATCH (calling_class:Class {name: $calling_class})
+        MATCH (target_class:Class {name: $target_class})
+        MATCH (calling_class)-[:HAS_METHOD]->(calling_method:Method {name: $calling_method})
+        MATCH (target_class)-[:HAS_METHOD]->(target_method:Method {name: $target_method})
+        MERGE (calling_method)-[:INVOKES {type: $call_type}]->(target_method)
+        """
+        
+        with self.driver.session() as session:
+            session.run(query, 
+                       calling_class=calling_class, 
+                       calling_method=calling_method,
+                       target_class=target_class, 
+                       target_method=target_method,
+                       call_type=call_type)
+
+    def get_call_stack(self, class_name: str) -> Dict[str, Any]:
+        """Get the complete call stack for a specific class"""
+        query = """
+        MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method)
+        OPTIONAL MATCH (m)-[:INVOKES]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
+        RETURN c.name as class_name, c.file_path as class_file,
+               m.name as method_name, m.visibility as method_visibility,
+               target_class.name as target_class_name, 
+               target_method.name as target_method_name
+        ORDER BY method_name, target_class_name, target_method_name
+        """
+        
+        call_stack = {}
+        
+        with self.driver.session() as session:
+            result = session.run(query, class_name=class_name)
+            
+            for record in result:
+                class_name = record["class_name"]
+                method_name = record["method_name"]
+                method_visibility = record["method_visibility"]
+                target_class_name = record["target_class_name"]
+                target_method_name = record["target_method_name"]
+                
+                # Initialize class structure
+                if class_name not in call_stack:
+                    call_stack[class_name] = {
+                        "file_path": record["class_file"],
+                        "methods": {}
+                    }
+                
+                # Initialize method structure
+                if method_name not in call_stack[class_name]["methods"]:
+                    call_stack[class_name]["methods"][method_name] = {
+                        "visibility": method_visibility,
+                        "calls": {}
+                    }
+                
+                # Add target method if it exists
+                if target_class_name and target_method_name:
+                    target_key = f"{target_class_name}.{target_method_name}"
+                    call_stack[class_name]["methods"][method_name]["calls"][target_key] = {
+                        "class": target_class_name,
+                        "method": target_method_name
+                    }
+        
+        return call_stack
+
+    def get_method_call_stack(self, class_name: str, method_name: str) -> Dict[str, Any]:
+        """Get the call stack for a specific method in a class"""
+        query = """
+        MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method {name: $method_name})
+        OPTIONAL MATCH (m)-[:INVOKES]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
+        WITH target_class, target_method
+        WHERE target_class IS NOT NULL AND target_method IS NOT NULL
+        MATCH (target_class)-[:HAS_METHOD]->(all_methods:Method)
+        OPTIONAL MATCH (all_methods)-[:INVOKES]->(nested_method:Method)<-[:HAS_METHOD]-(nested_class:Class)
+        RETURN target_class.name as class_name, target_class.file_path as class_file,
+               all_methods.name as method_name, all_methods.visibility as method_visibility,
+               nested_class.name as target_class_name, 
+               nested_method.name as target_method_name
+        ORDER BY class_name, method_name, target_class_name, target_method_name
+        """
+        
+        call_stack = {}
+        
+        with self.driver.session() as session:
+            result = session.run(query, class_name=class_name, method_name=method_name)
+            
+            for record in result:
+                class_name = record["class_name"]
+                method_name = record["method_name"]
+                method_visibility = record["method_visibility"]
+                target_class_name = record["target_class_name"]
+                target_method_name = record["target_method_name"]
+                
+                # Initialize class structure
+                if class_name not in call_stack:
+                    call_stack[class_name] = {
+                        "file_path": record["class_file"],
+                        "methods": {}
+                    }
+                
+                # Initialize method structure
+                if method_name not in call_stack[class_name]["methods"]:
+                    call_stack[class_name]["methods"][method_name] = {
+                        "visibility": method_visibility,
+                        "calls": {}
+                    }
+                
+                # Add target method if it exists
+                if target_class_name and target_method_name:
+                    target_key = f"{target_class_name}.{target_method_name}"
+                    call_stack[class_name]["methods"][method_name]["calls"][target_key] = {
+                        "class": target_class_name,
+                        "method": target_method_name
+                    }
+        
+        return call_stack
+
     def store_parsing_results(self, parsing_results: Dict[str, Dict[str, Any]]):
         """Store the parsing results in the graph database"""
         for language, language_results in parsing_results.items():

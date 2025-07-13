@@ -97,6 +97,34 @@ class SQLiteGraphDB(GraphDatabaseInterface):
         conn.commit()
         conn.close()
     
+    def create_method_call_relationship(self, calling_class: str, calling_method: str, 
+                                      target_class: str, target_method: str, call_type: str = "METHOD_CALL"):
+        """Create a relationship between methods in different classes"""
+        # For SQLite, we can add this information to a new table or extend existing tables
+        # For now, we'll add it to the method_calls table with additional context
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Find the calling method ID
+        cursor.execute('''
+            SELECT m.id FROM methods m
+            JOIN classes c ON m.class_id = c.id
+            WHERE c.name = ? AND m.name = ?
+        ''', (calling_class, calling_method))
+        
+        calling_result = cursor.fetchone()
+        if calling_result:
+            calling_method_id = calling_result[0]
+            
+            # Create an enhanced method call entry with target class information
+            cursor.execute('''
+                INSERT OR IGNORE INTO method_calls (method_id, called_method_name)
+                VALUES (?, ?)
+            ''', (calling_method_id, f"{target_class}.{target_method}"))
+            
+        conn.commit()
+        conn.close()
+    
     def store_parsing_results(self, parsing_results: Dict[str, Dict[str, Any]]):
         """Store the parsing results in the graph database"""
         for language, language_results in parsing_results.items():
@@ -184,6 +212,138 @@ class SQLiteGraphDB(GraphDatabaseInterface):
         
         conn.close()
     
+    def get_call_stack(self, class_name: str) -> Dict[str, Any]:
+        """Get the complete call stack for a specific class"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Get class info and all its methods with their calls
+        cursor.execute('''
+            SELECT n1.name as class_name, n1.file_path as class_file,
+                   n2.name as method_name, n2.visibility as method_visibility,
+                   mc.called_method_name
+            FROM nodes n1
+            JOIN nodes n2 ON n2.parent_id = n1.id AND n2.type = 'Method'
+            LEFT JOIN method_calls mc ON n2.id = mc.method_id
+            WHERE n1.type = 'Class' AND n1.name = ?
+            ORDER BY n2.name, mc.called_method_name
+        ''', (class_name,))
+        
+        results = cursor.fetchall()
+        conn.close()
+        
+        call_stack = {}
+        
+        for record in results:
+            class_name = record[0]
+            class_file = record[1]
+            method_name = record[2]
+            method_visibility = record[3]
+            called_method_name = record[4]
+            
+            # Initialize class structure
+            if class_name not in call_stack:
+                call_stack[class_name] = {
+                    "file_path": class_file,
+                    "methods": {}
+                }
+            
+            # Initialize method structure
+            if method_name not in call_stack[class_name]["methods"]:
+                call_stack[class_name]["methods"][method_name] = {
+                    "visibility": method_visibility,
+                    "calls": {}
+                }
+            
+            # Add called method if it exists and looks like a cross-class call
+            if called_method_name and '.' in called_method_name:
+                parts = called_method_name.split('.', 1)
+                if len(parts) == 2:
+                    target_class, target_method = parts
+                    call_stack[class_name]["methods"][method_name]["calls"][called_method_name] = {
+                        "class": target_class,
+                        "method": target_method
+                    }
+        
+        return call_stack
+        
+    def get_method_call_stack(self, class_name: str, method_name: str) -> Dict[str, Any]:
+        """Get the call stack for a specific method in a class"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # First, get methods that are called by the specified method
+        cursor.execute('''
+            SELECT mc.called_method_name
+            FROM nodes n1
+            JOIN nodes n2 ON n2.parent_id = n1.id AND n2.type = 'Method'
+            JOIN method_calls mc ON n2.id = mc.method_id
+            WHERE n1.type = 'Class' AND n1.name = ? AND n2.name = ?
+        ''', (class_name, method_name))
+        
+        called_methods = cursor.fetchall()
+        target_classes = []
+        
+        # Extract target class names from the called methods
+        for record in called_methods:
+            called_method_name = record[0]
+            if called_method_name and '.' in called_method_name:
+                parts = called_method_name.split('.', 1)
+                if len(parts) == 2:
+                    target_class = parts[0]
+                    target_classes.append(target_class)
+        
+        call_stack = {}
+        
+        # For each target class, get all its methods and their calls
+        for target_class in target_classes:
+            cursor.execute('''
+                SELECT n1.name as class_name, n1.file_path as class_file,
+                       n2.name as method_name, n2.visibility as method_visibility,
+                       mc.called_method_name
+                FROM nodes n1
+                JOIN nodes n2 ON n2.parent_id = n1.id AND n2.type = 'Method'
+                LEFT JOIN method_calls mc ON n2.id = mc.method_id
+                WHERE n1.type = 'Class' AND n1.name = ?
+                ORDER BY n2.name, mc.called_method_name
+            ''', (target_class,))
+            
+            results = cursor.fetchall()
+            
+            for record in results:
+                class_name = record[0]
+                class_file = record[1]
+                method_name = record[2]
+                method_visibility = record[3]
+                called_method_name = record[4]
+                
+                # Initialize class structure
+                if class_name not in call_stack:
+                    call_stack[class_name] = {
+                        "file_path": class_file,
+                        "methods": {}
+                    }
+                
+                # Initialize method structure
+                if method_name not in call_stack[class_name]["methods"]:
+                    call_stack[class_name]["methods"][method_name] = {
+                        "visibility": method_visibility,
+                        "calls": {}
+                    }
+                
+                # Add called method if it exists and looks like a cross-class call
+                if called_method_name and '.' in called_method_name:
+                    parts = called_method_name.split('.', 1)
+                    if len(parts) == 2:
+                        inner_target_class, inner_target_method = parts
+                        call_stack[class_name]["methods"][method_name]["calls"][called_method_name] = {
+                            "class": inner_target_class,
+                            "method": inner_target_method
+                        }
+        
+        conn.close()
+        return call_stack
+
     def close(self):
         """Clean up database connection"""
         # SQLite connections are closed automatically in this implementation

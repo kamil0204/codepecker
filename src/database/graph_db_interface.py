@@ -29,6 +29,22 @@ class GraphDatabaseInterface(ABC):
         pass
     
     @abstractmethod
+    def create_method_call_relationship(self, calling_class: str, calling_method: str, 
+                                      target_class: str, target_method: str, call_type: str = "METHOD_CALL"):
+        """Create a relationship between methods in different classes"""
+        pass
+    
+    @abstractmethod
+    def get_call_stack(self, class_name: str) -> Dict[str, Any]:
+        """Get the complete call stack for a specific class"""
+        pass
+    
+    @abstractmethod
+    def get_method_call_stack(self, class_name: str, method_name: str) -> Dict[str, Any]:
+        """Get the call stack for a specific method in a class"""
+        pass
+    
+    @abstractmethod
     def store_parsing_results(self, parsing_results: Dict[str, Dict[str, Any]]):
         """Store the parsing results in the graph database"""
         pass

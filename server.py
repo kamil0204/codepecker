@@ -131,6 +131,15 @@ async def index():
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Index page not found")
 
+@app.get("/call-stack", response_class=HTMLResponse)
+async def call_stack_page():
+    """Serve the call stack viewer page"""
+    try:
+        with open("src/web/templates/call-stack.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Call stack page not found")
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
@@ -338,7 +347,34 @@ async def get_stats():
             )
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error in stats endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+
+@app.get("/api/call-stack/{class_name}")
+async def get_call_stack(class_name: str):
+    """Get complete call stack for a specific class"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    try:
+        call_stack = graph_db.get_call_stack(class_name)
+        return call_stack
+    except Exception as e:
+        print(f"Error in call-stack endpoint for {class_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get call stack: {str(e)}")
+
+@app.get("/api/call-stack/{class_name}/{method_name}")
+async def get_method_call_stack(class_name: str, method_name: str):
+    """Get call stack for a specific method in a class"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    try:
+        call_stack = graph_db.get_method_call_stack(class_name, method_name)
+        return call_stack
+    except Exception as e:
+        print(f"Error in method call-stack endpoint for {class_name}.{method_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get method call stack: {str(e)}")
 
 # TODO: Add NetworkX-based graph visualization endpoints
 # 
@@ -382,9 +418,12 @@ def main():
     print(f"🌐 Server will start on http://localhost:8000")
     print("📊 API endpoints available:")
     print("   GET / - Web interface")
+    print("   GET /call-stack - Call stack viewer")
     print("   GET /api/health - Health check")
     print("   GET /api/classes - List all classes")
     print("   GET /api/class/{name}/graph - Get class graph")
+    print("   GET /api/call-stack/{name} - Get call stack for class")
+    print("   GET /api/call-stack/{name}/{method} - Get nested call stack for method")
     print("   GET /api/graph/full - Get full graph")
     print("   GET /api/stats - Database statistics")
     print("   GET /docs - Swagger UI documentation")
