@@ -12,11 +12,84 @@ Configure the target project path in the main() function.
 """
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from pathlib import Path
 from src.utils.directory_scanner import get_directory_tree, generate_text_tree
 from src.llm.llm_client import generate_entrypoints_list
 from src.parsers.parser_manager import ParserManager
 from src.database.graph_db_factory import CallStackGraphDB
 from src.core.config import Config
+
+
+def parse_files_parallel(parser_manager, grouped_files, max_workers=4):
+    """
+    Parse files in parallel using ThreadPoolExecutor
+    
+    Args:
+        parser_manager: ParserManager instance
+        grouped_files: Dictionary of language -> list of file paths
+        max_workers: Maximum number of threads to use
+    
+    Returns:
+        Dictionary containing parsing results for all files
+    """
+    print(f"   • Using {max_workers} threads for parallel parsing")
+    
+    all_results = {}
+    lock = threading.Lock()
+    
+    def parse_single_file(file_path, language):
+        """Parse a single file and return results"""
+        try:
+            # Get the appropriate parser for the language
+            if language in parser_manager.parsers:
+                parser = parser_manager.parsers[language]
+                result = parser.parse_file(file_path)
+                return file_path, result
+            else:
+                print(f"   ⚠️  No parser available for language: {language}")
+                return file_path, None
+        except Exception as e:
+            print(f"   ⚠️  Error parsing {file_path}: {e}")
+            return file_path, None
+    
+    # Process each language group
+    for language, file_paths in grouped_files.items():
+        print(f"   • Processing {len(file_paths)} {language} files...")
+        
+        language_results = {}
+        
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all files for parsing
+            future_to_file = {
+                executor.submit(parse_single_file, file_path, language): file_path 
+                for file_path in file_paths
+            }
+            
+            # Collect results as they complete
+            completed = 0
+            for future in as_completed(future_to_file):
+                file_path = future_to_file[future]
+                try:
+                    parsed_file, result = future.result()
+                    if result:
+                        with lock:
+                            language_results[parsed_file] = result
+                    completed += 1
+                    
+                    # Progress indicator
+                    if completed % 10 == 0 or completed == len(file_paths):
+                        print(f"   • Completed {completed}/{len(file_paths)} {language} files")
+                        
+                except Exception as e:
+                    print(f"   ⚠️  Failed to process {file_path}: {e}")
+        
+        all_results[language] = language_results
+        print(f"   ✅ Completed {language}: {len(language_results)} files successfully parsed")
+    
+    return all_results
 
 
 def main():
@@ -90,6 +163,44 @@ def main():
             graph_db.store_parsing_results(parsing_results)
             print("   • Data ingestion completed")
             
+            # Additional step: Parse remaining files not identified as entry points
+            print("\n🔄 Step 5: Processing remaining files with parallelized parsing...")
+            
+            # Get all C# files from the directory tree
+            all_cs_files = []
+            for item in tree_items:
+                # tree_items contains tuples: (item_type, name, level, full_path)
+                item_type, name, level, file_path = item
+                if item_type == 'file' and file_path.endswith('.cs') and os.path.isfile(file_path):
+                    all_cs_files.append(file_path)
+            
+            # Get entry point files for comparison
+            entry_point_files = set(file_paths)  # These were already processed
+            
+            # Filter out entry point files to get remaining files
+            remaining_files = [f for f in all_cs_files if f not in entry_point_files]
+            
+            print(f"   • Found {len(all_cs_files)} total C# files")
+            print(f"   • Already processed {len(entry_point_files)} entry point files")
+            print(f"   • Remaining {len(remaining_files)} files to process")
+            
+            if remaining_files:
+                # Group remaining files by language (mostly C# in this case)
+                remaining_grouped = parser_manager.group_files_by_language(remaining_files)
+                print(f"   • Grouped remaining files by language: {list(remaining_grouped.keys())}")
+                
+                # Parse remaining files with parallelization
+                print("   • Starting parallelized parsing of remaining files...")
+                remaining_parsing_results = parse_files_parallel(parser_manager, remaining_grouped)
+                print("✅ Parallelized parsing completed")
+                
+                # Store additional parsing results in the database
+                print("   • Storing additional parsing results...")
+                graph_db.store_parsing_results(remaining_parsing_results)
+                print("   • Additional data ingestion completed")
+            else:
+                print("   • No additional files to process")
+
             print(f"\n📈 Generated Code Structure Visualization:")
             print("="*60)
             graph_db.print_graph()
