@@ -88,10 +88,17 @@ class Neo4jGraphDB(GraphDatabaseInterface):
             return result.single()["method_id"]
     
     def add_method_call(self, method_id: str, called_method_name: str):
-        """Add a method call relationship"""
+        """Add a method call relationship - try to find actual target method, fallback to property-based"""
         query = """
         MATCH (m:Method) WHERE elementId(m) = $method_id
-        MERGE (m)-[:CALLS {method_name: $called_method_name}]->(m)
+        OPTIONAL MATCH (target:Method {name: $called_method_name})
+        WHERE target <> m
+        FOREACH (t IN CASE WHEN target IS NOT NULL THEN [target] ELSE [] END |
+            MERGE (m)-[:METHOD_CALL {type: "SIMPLE_CALL"}]->(t)
+        )
+        FOREACH (_ IN CASE WHEN target IS NULL THEN [1] ELSE [] END |
+            MERGE (m)-[:METHOD_CALL {method_name: $called_method_name, type: "UNRESOLVED_CALL"}]->(m)
+        )
         """
         
         with self.driver.session() as session:
@@ -105,7 +112,7 @@ class Neo4jGraphDB(GraphDatabaseInterface):
         MATCH (target_class:Class {name: $target_class})
         MATCH (calling_class)-[:HAS_METHOD]->(calling_method:Method {name: $calling_method})
         MATCH (target_class)-[:HAS_METHOD]->(target_method:Method {name: $target_method})
-        MERGE (calling_method)-[:INVOKES {type: $call_type}]->(target_method)
+        MERGE (calling_method)-[:METHOD_CALL {type: $call_type}]->(target_method)
         """
         
         with self.driver.session() as session:
@@ -120,7 +127,7 @@ class Neo4jGraphDB(GraphDatabaseInterface):
         """Get the complete call stack for a specific class"""
         query = """
         MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method)
-        OPTIONAL MATCH (m)-[:INVOKES]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
+        OPTIONAL MATCH (m)-[:METHOD_CALL]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
         RETURN c.name as class_name, c.file_path as class_file,
                m.name as method_name, m.visibility as method_visibility,
                target_class.name as target_class_name, 
@@ -168,11 +175,11 @@ class Neo4jGraphDB(GraphDatabaseInterface):
         """Get the call stack for a specific method in a class"""
         query = """
         MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method {name: $method_name})
-        OPTIONAL MATCH (m)-[:INVOKES]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
+        OPTIONAL MATCH (m)-[:METHOD_CALL]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
         WITH target_class, target_method
         WHERE target_class IS NOT NULL AND target_method IS NOT NULL
         MATCH (target_class)-[:HAS_METHOD]->(all_methods:Method)
-        OPTIONAL MATCH (all_methods)-[:INVOKES]->(nested_method:Method)<-[:HAS_METHOD]-(nested_class:Class)
+        OPTIONAL MATCH (all_methods)-[:METHOD_CALL]->(nested_method:Method)<-[:HAS_METHOD]-(nested_class:Class)
         RETURN target_class.name as class_name, target_class.file_path as class_file,
                all_methods.name as method_name, all_methods.visibility as method_visibility,
                nested_class.name as target_class_name, 
@@ -284,9 +291,14 @@ class Neo4jGraphDB(GraphDatabaseInterface):
                     
                     # Get method calls for this method
                     calls_query = """
-                    MATCH (m:Method {name: $method_name, parent_class_name: $class_name})-[call:CALLS]->()
-                    RETURN call.method_name as called_method
-                    ORDER BY call.method_name
+                    MATCH (m:Method {name: $method_name, parent_class_name: $class_name})
+                    OPTIONAL MATCH (m)-[call:METHOD_CALL]->(target:Method)
+                    OPTIONAL MATCH (target)<-[:HAS_METHOD]-(target_class:Class)
+                    RETURN CASE 
+                        WHEN target_class IS NOT NULL THEN target_class.name + '.' + target.name
+                        ELSE call.method_name 
+                    END as called_method
+                    ORDER BY called_method
                     """
                     
                     calls_results = session.run(calls_query, method_name=method_name, class_name=class_name)

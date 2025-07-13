@@ -206,10 +206,10 @@ async def get_class_graph(class_name: str):
             # Get methods and their calls
             methods_query = """
             MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method)
-            OPTIONAL MATCH (m)-[call:CALLS]->()
+            OPTIONAL MATCH (m)-[:METHOD_CALL]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
             RETURN m.name as method_name, 
                    m.visibility as method_visibility,
-                   collect(call.method_name) as method_calls
+                   collect(DISTINCT target_class.name + '.' + target_method.name) as method_calls
             ORDER BY m.name
             """
             methods_result = session.run(methods_query, class_name=class_name)
@@ -249,14 +249,14 @@ async def get_full_graph():
             query = """
             MATCH (c:Class)
             OPTIONAL MATCH (c)-[:HAS_METHOD]->(m:Method)
-            OPTIONAL MATCH (m)-[call:CALLS]->()
+            OPTIONAL MATCH (m)-[:METHOD_CALL]->(target_method:Method)<-[:HAS_METHOD]-(target_class:Class)
             RETURN c.name as class_name,
                    c.file_path as class_file_path,
                    c.visibility as class_visibility,
                    collect({
                        name: m.name,
                        visibility: m.visibility,
-                       calls: call.method_name
+                       calls: target_class.name + '.' + target_method.name
                    }) as methods
             ORDER BY c.name
             """
@@ -332,10 +332,10 @@ async def get_stats():
             stats_query = """
             MATCH (c:Class)
             OPTIONAL MATCH (c)-[:HAS_METHOD]->(m:Method)
-            OPTIONAL MATCH (m)-[call:CALLS]->()
+            OPTIONAL MATCH (m)-[r:METHOD_CALL]->()
             RETURN count(DISTINCT c) as total_classes,
                    count(DISTINCT m) as total_methods,
-                   count(call) as total_method_calls
+                   count(r) as total_method_calls
             """
             result = session.run(stats_query)
             stats_record = result.single()
