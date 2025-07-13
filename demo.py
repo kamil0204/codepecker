@@ -134,7 +134,7 @@ def main():
         print_step(2, "Skipping Data Ingestion", "Using existing database data")
     
     # Step 3: Start web server
-    print_step(3, "Starting Web Server", "Server will start at http://localhost:5000")
+    print_step(3, "Starting Web Server", "Server will start at http://localhost:8000")
     
     print("🚀 Starting server...")
     print("   The web interface will open automatically")
@@ -145,11 +145,11 @@ def main():
     def open_browser():
         time.sleep(3)  # Give server time to start
         try:
-            webbrowser.open('http://localhost:5000')
-            print("🌐 Web browser opened to http://localhost:5000")
+            webbrowser.open('http://localhost:8000')
+            print("🌐 Web browser opened to http://localhost:8000")
         except Exception as e:
             print(f"⚠️  Could not open browser automatically: {e}")
-            print("   Please manually open http://localhost:5000")
+            print("   Please manually open http://localhost:8000")
     
     import threading
     browser_thread = threading.Thread(target=open_browser)

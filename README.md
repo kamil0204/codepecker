@@ -124,7 +124,7 @@ After running the data ingestion, you can start a web server to explore the data
 python server.py
 ```
 
-This starts a Flask web server at `http://localhost:5000` with:
+This starts a FastAPI web server at `http://localhost:8000` with:
 
 ### 🌐 **Web Interface**
 - **Interactive Dashboard**: View all classes and their methods
@@ -135,15 +135,37 @@ This starts a Flask web server at `http://localhost:5000` with:
 ### 📡 **REST API Endpoints**
 - `GET /api/health` - Health check and database status
 - `GET /api/classes` - List all classes (entry points)
-- `GET /api/class/<name>/graph` - Get detailed graph for a specific class
+- `GET /api/class/{name}/graph` - Get detailed graph for a specific class
 - `GET /api/graph/full` - Get complete graph data
 - `GET /api/stats` - Database statistics
+
+### 📚 **Auto-Generated Documentation**
+- `GET /docs` - **Swagger UI** - Interactive API documentation
+- `GET /redoc` - **ReDoc** - Alternative API documentation
 
 ### 🚀 **Usage Workflow**
 1. Run `python ingestion.py` to populate the database
 2. Start `python server.py` to launch the web interface
-3. Open `http://localhost:5000` in your browser
+3. Open `http://localhost:8000` in your browser
 4. Explore your codebase interactively!
+5. Visit `http://localhost:8000/docs` for API documentation
+
+## 🎯 Roadmap & TODO
+
+### **Next Major Feature: Interactive Graph Visualization** 
+**Priority: HIGH** - See [TODO.md](TODO.md) for detailed implementation plan
+
+**Goal**: Build NetworkX-based visual drill-down experience for exploring code relationships
+
+**Planned Features**:
+- 🎨 **Interactive Graph UI**: D3.js/Cytoscape.js visualization with zoom/pan
+- 🔍 **Multi-level Drill-down**: Class → Methods → Call chains navigation  
+- 🎯 **Visual Coding**: Color-coded nodes for visibility (public/private)
+- 📐 **Multiple Layouts**: Spring, hierarchical, circular graph arrangements
+- 🔍 **Search & Filter**: Find and highlight specific components
+- 📊 **Export Options**: Save graphs as PNG/SVG/PDF
+
+This will transform the current list-based interface into a rich, visual architecture exploration tool.
 
 ## Dependencies
 
@@ -153,5 +175,6 @@ This starts a Flask web server at `http://localhost:5000` with:
 - `requests` - For authentication requests
 - `neo4j` - Neo4j graph database driver
 - `python-dotenv` - Environment variable management
-- `flask` - Web server framework
-- `flask-cors` - Cross-origin resource sharing
+- `fastapi` - High-performance web framework
+- `uvicorn` - ASGI server for FastAPI
+- `python-multipart` - Form data parsing

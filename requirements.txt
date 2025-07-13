@@ -7,5 +7,12 @@ neo4j>=5.0.0
 python-dotenv>=1.0.0
 
 # Web server dependencies
-flask>=2.3.0
-flask-cors>=4.0.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# TODO: Add when implementing NetworkX graph visualization
+# networkx>=3.0
+# matplotlib>=3.7.0  
+# plotly>=5.17.0
+# python-igraph>=0.10.0  # Optional: for advanced layouts
