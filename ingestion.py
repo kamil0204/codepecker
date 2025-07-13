@@ -149,7 +149,7 @@ def establish_method_call_relationships(graph_db, entry_point_results, remaining
                 
                 for method_info in class_info.get('methods', []):
                     calling_method = method_info['name']
-                    method_calls = method_info.get('calls', [])
+                    method_calls = method_info.get('method_calls', [])  # Changed from 'calls' to 'method_calls'
                     
                     for called_method_name in method_calls:
                         # Skip if calling itself (recursive calls are already handled)
@@ -324,9 +324,9 @@ def main():
                 print("   • No additional files to process")
 
             # Additional step: Establish method call relationships
-            print("\n🔗 Step 6: Establishing method call relationships...")
-            establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
-            print("✅ Method call relationships established")
+            # print("\n🔗 Step 6: Establishing method call relationships...")
+            # establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
+            # print("✅ Method call relationships established")
 
             print(f"\n📈 Generated Code Structure Visualization:")
             print("="*60)

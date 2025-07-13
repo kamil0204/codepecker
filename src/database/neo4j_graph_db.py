@@ -68,23 +68,28 @@ class Neo4jGraphDB(GraphDatabaseInterface):
             result = session.run(query, name=class_name, file_path=normalized_path, visibility=visibility)
             return result.single()["class_id"]
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: str) -> str:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: str, method_calls: List[str] = None) -> str:
         """Add a method node to the graph under a class"""
+        if method_calls is None:
+            method_calls = []
+            
         query = """
         MATCH (c:Class) WHERE elementId(c) = $parent_class_id
         MERGE (m:Method {name: $name, parent_class_name: c.name})
         ON CREATE SET 
             m.visibility = $visibility,
-            m.type = 'Method'
+            m.type = 'Method',
+            m.method_calls = $method_calls
         ON MATCH SET
             m.visibility = $visibility,
-            m.type = 'Method'
+            m.type = 'Method',
+            m.method_calls = $method_calls
         MERGE (c)-[:HAS_METHOD]->(m)
         RETURN elementId(m) as method_id
         """
         
         with self.driver.session() as session:
-            result = session.run(query, name=method_name, visibility=visibility, parent_class_id=parent_class_id)
+            result = session.run(query, name=method_name, visibility=visibility, parent_class_id=parent_class_id, method_calls=method_calls)
             return result.single()["method_id"]
     
     def add_method_call(self, method_id: str, called_method_name: str):
@@ -242,13 +247,17 @@ class Neo4jGraphDB(GraphDatabaseInterface):
                         
                         # Add methods under the class
                         for method_info in class_info['methods']:
+                            # Extract method calls list
+                            method_calls_list = method_info.get('method_calls', [])
+                            
                             method_id = self.add_method(
                                 method_name=method_info['name'],
                                 visibility=method_info.get('visibility', 'private').title(),
-                                parent_class_id=class_id
+                                parent_class_id=class_id,
+                                method_calls=method_calls_list
                             )
                             
-                            # Add method calls if they exist
+                            # Add method calls as relationships if they exist
                             if 'method_calls' in method_info:
                                 for called_method in method_info['method_calls']:
                                     self.add_method_call(method_id, called_method)
