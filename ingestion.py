@@ -137,54 +137,54 @@ def establish_method_call_relationships(graph_db, entry_point_results, remaining
     print(f"   • Indexed {len(method_index)} unique method names across {len(class_method_map)} classes")
     
     # Process method calls and establish relationships
-    relationships_created = 0
+    # relationships_created = 0
     
-    for language, file_results in all_results.items():
-        for file_path, file_result in file_results.items():
-            if 'error' in file_result or 'classes' not in file_result:
-                continue
+    # for language, file_results in all_results.items():
+    #     for file_path, file_result in file_results.items():
+    #         if 'error' in file_result or 'classes' not in file_result:
+    #             continue
                 
-            for class_info in file_result['classes']:
-                calling_class = class_info['name']
+    #         for class_info in file_result['classes']:
+    #             calling_class = class_info['name']
                 
-                for method_info in class_info.get('methods', []):
-                    calling_method = method_info['name']
-                    method_calls = method_info.get('method_calls', [])  # Changed from 'calls' to 'method_calls'
+    #             for method_info in class_info.get('methods', []):
+    #                 calling_method = method_info['name']
+    #                 method_calls = method_info.get('method_calls', [])  # Changed from 'calls' to 'method_calls'
                     
-                    for called_method_name in method_calls:
-                        # Skip if calling itself (recursive calls are already handled)
-                        if called_method_name == calling_method:
-                            continue
+    #                 for called_method_name in method_calls:
+    #                     # Skip if calling itself (recursive calls are already handled)
+    #                     if called_method_name == calling_method:
+    #                         continue
                             
-                        # Find potential target methods
-                        target_methods = find_target_method(
-                            called_method_name, 
-                            calling_class, 
-                            method_index, 
-                            class_method_map
-                        )
+    #                     # Find potential target methods
+    #                     target_methods = find_target_method(
+    #                         called_method_name, 
+    #                         calling_class, 
+    #                         method_index, 
+    #                         class_method_map
+    #                     )
                         
-                        # Create relationships for each target method found
-                        for target_class, target_file, target_method_info in target_methods:
-                            try:
-                                graph_db.create_method_call_relationship(
-                                    calling_class=calling_class,
-                                    calling_method=calling_method,
-                                    target_class=target_class,
-                                    target_method=called_method_name,
-                                    call_type="METHOD_CALL"
-                                )
-                                relationships_created += 1
+    #                     # Create relationships for each target method found
+    #                     for target_class, target_file, target_method_info in target_methods:
+    #                         try:
+    #                             graph_db.create_method_call_relationship(
+    #                                 calling_class=calling_class,
+    #                                 calling_method=calling_method,
+    #                                 target_class=target_class,
+    #                                 target_method=called_method_name,
+    #                                 call_type="METHOD_CALL"
+    #                             )
+    #                             relationships_created += 1
                                 
-                                if relationships_created <= 10:  # Show first 10 for debugging
-                                    print(f"   • Created: {calling_class}.{calling_method} -> {target_class}.{called_method_name}")
-                                elif relationships_created == 11:
-                                    print("   • (Additional relationships created...)")
+    #                             if relationships_created <= 10:  # Show first 10 for debugging
+    #                                 print(f"   • Created: {calling_class}.{calling_method} -> {target_class}.{called_method_name}")
+    #                             elif relationships_created == 11:
+    #                                 print("   • (Additional relationships created...)")
                                     
-                            except Exception as e:
-                                print(f"   ⚠️  Error creating relationship {calling_class}.{calling_method} -> {target_class}.{called_method_name}: {e}")
+    #                         except Exception as e:
+    #                             print(f"   ⚠️  Error creating relationship {calling_class}.{calling_method} -> {target_class}.{called_method_name}: {e}")
     
-    print(f"   • Total relationships created: {relationships_created}")
+    # print(f"   • Total relationships created: {relationships_created}")
 
 
 def find_target_method(called_method_name, calling_class, method_index, class_method_map):
@@ -325,7 +325,7 @@ def main():
 
             # Additional step: Establish method call relationships
             # print("\n🔗 Step 6: Establishing method call relationships...")
-            # establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
+            establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
             # print("✅ Method call relationships established")
 
             print(f"\n📈 Generated Code Structure Visualization:")

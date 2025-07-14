@@ -1,7 +1,7 @@
 """
 Factory for creating graph database instances
 """
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, List
 from .graph_db_interface import GraphDatabaseInterface
 from .neo4j_graph_db import Neo4jGraphDB
 
@@ -69,9 +69,9 @@ class CallStackGraphDB:
         """Add a class node to the graph"""
         return self.db.add_class(class_name, file_path, visibility)
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str]) -> Union[int, str]:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str], method_calls: List[str] = None, definition: str = None) -> Union[int, str]:
         """Add a method node to the graph under a class"""
-        return self.db.add_method(method_name, visibility, parent_class_id)
+        return self.db.add_method(method_name, visibility, parent_class_id, method_calls, definition)
     
     def add_method_call(self, method_id: Union[int, str], called_method_name: str):
         """Add a method call relationship"""

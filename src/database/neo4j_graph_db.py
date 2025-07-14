@@ -68,7 +68,7 @@ class Neo4jGraphDB(GraphDatabaseInterface):
             result = session.run(query, name=class_name, file_path=normalized_path, visibility=visibility)
             return result.single()["class_id"]
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: str, method_calls: List[str] = None) -> str:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: str, method_calls: List[str] = None, definition: str = None) -> str:
         """Add a method node to the graph under a class"""
         if method_calls is None:
             method_calls = []
@@ -79,17 +79,19 @@ class Neo4jGraphDB(GraphDatabaseInterface):
         ON CREATE SET 
             m.visibility = $visibility,
             m.type = 'Method',
-            m.method_calls = $method_calls
+            m.method_calls = $method_calls,
+            m.definition = $definition
         ON MATCH SET
             m.visibility = $visibility,
             m.type = 'Method',
-            m.method_calls = $method_calls
+            m.method_calls = $method_calls,
+            m.definition = $definition
         MERGE (c)-[:HAS_METHOD]->(m)
         RETURN elementId(m) as method_id
         """
         
         with self.driver.session() as session:
-            result = session.run(query, name=method_name, visibility=visibility, parent_class_id=parent_class_id, method_calls=method_calls)
+            result = session.run(query, name=method_name, visibility=visibility, parent_class_id=parent_class_id, method_calls=method_calls, definition=definition)
             return result.single()["method_id"]
     
     def add_method_call(self, method_id: str, called_method_name: str):
@@ -254,7 +256,8 @@ class Neo4jGraphDB(GraphDatabaseInterface):
                                 method_name=method_info['name'],
                                 visibility=method_info.get('visibility', 'private').title(),
                                 parent_class_id=class_id,
-                                method_calls=method_calls_list
+                                method_calls=method_calls_list,
+                                definition=method_info.get('definition')
                             )
                             
                             # Add method calls as relationships if they exist

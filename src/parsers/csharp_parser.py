@@ -182,10 +182,14 @@ class CSharpParser(BaseParser):
         # Find method calls within this method
         method_calls = self._find_method_calls_in_method(method_node, content)
         
+        # Extract the entire method definition text
+        method_definition = content[method_node.start_byte:method_node.end_byte].strip()
+        
         return {
             "name": method_name,
             "visibility": visibility,
-            "method_calls": method_calls
+            "method_calls": method_calls,
+            "definition": method_definition
         }
     
     def _find_method_calls_in_method(self, method_node, content: str) -> List[str]:

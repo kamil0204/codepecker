@@ -19,7 +19,7 @@ class GraphDatabaseInterface(ABC):
         pass
     
     @abstractmethod
-    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str]) -> Union[int, str]:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str], method_calls: List[str] = None, definition: str = None) -> Union[int, str]:
         """Add a method node to the graph under a class"""
         pass
     

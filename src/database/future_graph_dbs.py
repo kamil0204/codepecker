@@ -1,7 +1,7 @@
 """
 Placeholder implementations for other graph databases (future development)
 """
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, List
 from .graph_db_interface import GraphDatabaseInterface
 
 
@@ -27,7 +27,7 @@ class MemgraphGraphDB(GraphDatabaseInterface):
         # TODO: Implement Memgraph class creation (similar to Neo4j)
         return "0"  # Placeholder
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str]) -> Union[int, str]:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str], method_calls: List[str] = None, definition: str = None) -> Union[int, str]:
         """Add a method node to the graph under a class"""
         # TODO: Implement Memgraph method creation
         return "0"  # Placeholder
@@ -77,7 +77,7 @@ class ArangoDBGraphDB(GraphDatabaseInterface):
         # TODO: Implement ArangoDB document creation
         return "0"  # Placeholder
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str]) -> Union[int, str]:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str], method_calls: List[str] = None, definition: str = None) -> Union[int, str]:
         """Add a method node to the graph under a class"""
         # TODO: Implement ArangoDB document and edge creation
         return "0"  # Placeholder
@@ -127,7 +127,7 @@ class TigerGraphDB(GraphDatabaseInterface):
         # TODO: Implement TigerGraph vertex creation
         return "0"  # Placeholder
     
-    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str]) -> Union[int, str]:
+    def add_method(self, method_name: str, visibility: str, parent_class_id: Union[int, str], method_calls: List[str] = None, definition: str = None) -> Union[int, str]:
         """Add a method node to the graph under a class"""
         # TODO: Implement TigerGraph method vertex and edge creation
         return "0"  # Placeholder
