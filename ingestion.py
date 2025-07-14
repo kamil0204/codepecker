@@ -15,7 +15,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from src.utils.directory_scanner import get_directory_tree, generate_text_tree
-from src.llm.llm_client import generate_entrypoints_list
+from src.llm.llm_client import generate_entrypoints_list, review_csharp_methods
 from src.parsers.parser_manager import ParserManager
 from src.database.graph_db_factory import CallStackGraphDB
 from src.core.config import Config
@@ -89,6 +89,112 @@ def parse_files_parallel(parser_manager, grouped_files, max_workers=4):
         print(f"   ✅ Completed {language}: {len(language_results)} files successfully parsed")
     
     return all_results
+
+
+def review_methods_with_llm_parallel(graph_db, batch_size=10, max_workers=3):
+    """
+    Review all methods in the database using LLM in parallel batches
+    
+    Args:
+        graph_db: Graph database instance
+        batch_size: Number of methods to review in each batch
+        max_workers: Maximum number of parallel threads
+    """
+    print("🔍 Step 6: Reviewing methods with LLM...")
+    
+    # Clear existing reviews first
+    graph_db.clear_existing_reviews()
+    print("   • Cleared existing reviews")
+    
+    # Get all methods that need review
+    all_methods = graph_db.get_all_methods_for_review()
+    total_methods = len(all_methods)
+    
+    if total_methods == 0:
+        print("   • No methods found for review")
+        return
+    
+    print(f"   • Found {total_methods} methods to review")
+    print(f"   • Using batch size: {batch_size}, workers: {max_workers}")
+    
+    # Split methods into batches
+    batches = [all_methods[i:i + batch_size] for i in range(0, total_methods, batch_size)]
+    print(f"   • Split into {len(batches)} batches")
+    
+    total_reviews_created = 0
+    total_batches_processed = 0
+    
+    def process_batch(batch_methods):
+        """Process a batch of methods for review"""
+        batch_reviews = 0
+        
+        for method in batch_methods:
+            try:
+                # Prepare method data for LLM review
+                method_data = {
+                    "name": method["method_name"],
+                    "class_name": method["class_name"],
+                    "visibility": method["visibility"],
+                    "definition": method["definition"]
+                }
+                
+                # Call LLM for review
+                review_json = review_csharp_methods([method_data], method["file_path"])
+                
+                if review_json:
+                    try:
+                        # Clean the JSON response (remove markdown code blocks if present)
+                        cleaned_review_json = review_json.strip()
+                        if cleaned_review_json.startswith('```json'):
+                            # Remove markdown code block wrapper
+                            cleaned_review_json = cleaned_review_json[7:]  # Remove '```json'
+                            if cleaned_review_json.endswith('```'):
+                                cleaned_review_json = cleaned_review_json[:-3]  # Remove trailing '```'
+                            cleaned_review_json = cleaned_review_json.strip()
+                        elif cleaned_review_json.startswith('```'):
+                            # Handle generic code blocks
+                            cleaned_review_json = cleaned_review_json[3:]  # Remove '```'
+                            if cleaned_review_json.endswith('```'):
+                                cleaned_review_json = cleaned_review_json[:-3]  # Remove trailing '```'
+                            cleaned_review_json = cleaned_review_json.strip()
+                        
+                        reviews = json.loads(cleaned_review_json)
+                        
+                        # Store each review in the database
+                        for review in reviews:
+                            if isinstance(review, dict) and review.get("method_name"):
+                                graph_db.add_review(method["method_id"], review)
+                                batch_reviews += 1
+                                
+                    except json.JSONDecodeError as e:
+                        print(f"   ⚠️  JSON decode error for method {method['class_name']}.{method['method_name']}: {e}")
+                        
+            except Exception as e:
+                print(f"   ⚠️  Error reviewing method {method['class_name']}.{method['method_name']}: {e}")
+        
+        return batch_reviews
+    
+    # Process batches in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_batch = {
+            executor.submit(process_batch, batch): i 
+            for i, batch in enumerate(batches)
+        }
+        
+        for future in as_completed(future_to_batch):
+            batch_index = future_to_batch[future]
+            try:
+                batch_reviews = future.result()
+                total_reviews_created += batch_reviews
+                total_batches_processed += 1
+                
+                progress = (total_batches_processed / len(batches)) * 100
+                print(f"   • Batch {batch_index + 1}/{len(batches)} completed ({progress:.1f}%) - {batch_reviews} reviews created")
+                
+            except Exception as e:
+                print(f"   ⚠️  Batch {batch_index + 1} failed: {e}")
+    
+    print(f"✅ Method review completed: {total_reviews_created} reviews created for {total_methods} methods")
 
 
 def establish_method_call_relationships(graph_db, entry_point_results, remaining_results):
@@ -250,8 +356,23 @@ def main():
     
     if entrypoints_json:
         try:
+            # Clean the JSON response (remove markdown code blocks if present)
+            cleaned_json = entrypoints_json.strip()
+            if cleaned_json.startswith('```json'):
+                # Remove markdown code block wrapper
+                cleaned_json = cleaned_json[7:]  # Remove '```json'
+                if cleaned_json.endswith('```'):
+                    cleaned_json = cleaned_json[:-3]  # Remove trailing '```'
+                cleaned_json = cleaned_json.strip()
+            elif cleaned_json.startswith('```'):
+                # Handle generic code blocks
+                cleaned_json = cleaned_json[3:]  # Remove '```'
+                if cleaned_json.endswith('```'):
+                    cleaned_json = cleaned_json[:-3]  # Remove trailing '```'
+                cleaned_json = cleaned_json.strip()
+            
             # Parse the JSON response
-            entrypoints_list = json.loads(entrypoints_json)
+            entrypoints_list = json.loads(cleaned_json)
             
             # Display summary
             print(f"✅ Identified {len(entrypoints_list)} entry points:")
@@ -288,45 +409,48 @@ def main():
             # Additional step: Parse remaining files not identified as entry points
             print("\n🔄 Step 5: Processing remaining files with parallelized parsing...")
             
-            # Get all C# files from the directory tree
-            all_cs_files = []
-            for item in tree_items:
-                # tree_items contains tuples: (item_type, name, level, full_path)
-                item_type, name, level, file_path = item
-                if item_type == 'file' and file_path.endswith('.cs') and os.path.isfile(file_path):
-                    all_cs_files.append(file_path)
+            # # Get all C# files from the directory tree
+            # all_cs_files = []
+            # for item in tree_items:
+            #     # tree_items contains tuples: (item_type, name, level, full_path)
+            #     item_type, name, level, file_path = item
+            #     if item_type == 'file' and file_path.endswith('.cs') and os.path.isfile(file_path):
+            #         all_cs_files.append(file_path)
             
-            # Get entry point files for comparison
-            entry_point_files = set(file_paths)  # These were already processed
+            # # Get entry point files for comparison
+            # entry_point_files = set(file_paths)  # These were already processed
             
             # Filter out entry point files to get remaining files
-            remaining_files = [f for f in all_cs_files if f not in entry_point_files]
+            # remaining_files = [f for f in all_cs_files if f not in entry_point_files]
             
-            print(f"   • Found {len(all_cs_files)} total C# files")
-            print(f"   • Already processed {len(entry_point_files)} entry point files")
-            print(f"   • Remaining {len(remaining_files)} files to process")
+            # print(f"   • Found {len(all_cs_files)} total C# files")
+            # print(f"   • Already processed {len(entry_point_files)} entry point files")
+            # print(f"   • Remaining {len(remaining_files)} files to process")
             
-            if remaining_files:
-                # Group remaining files by language (mostly C# in this case)
-                remaining_grouped = parser_manager.group_files_by_language(remaining_files)
-                print(f"   • Grouped remaining files by language: {list(remaining_grouped.keys())}")
+            # if remaining_files:
+            #     # Group remaining files by language (mostly C# in this case)
+            #     remaining_grouped = parser_manager.group_files_by_language(remaining_files)
+            #     print(f"   • Grouped remaining files by language: {list(remaining_grouped.keys())}")
                 
-                # Parse remaining files with parallelization
-                print("   • Starting parallelized parsing of remaining files...")
-                remaining_parsing_results = parse_files_parallel(parser_manager, remaining_grouped)
-                print("✅ Parallelized parsing completed")
+            #     # Parse remaining files with parallelization
+            #     print("   • Starting parallelized parsing of remaining files...")
+            #     remaining_parsing_results = parse_files_parallel(parser_manager, remaining_grouped)
+            #     print("✅ Parallelized parsing completed")
                 
-                # Store additional parsing results in the database
-                print("   • Storing additional parsing results...")
-                graph_db.store_parsing_results(remaining_parsing_results)
-                print("   • Additional data ingestion completed")
-            else:
-                print("   • No additional files to process")
+            #     # Store additional parsing results in the database
+            #     print("   • Storing additional parsing results...")
+            #     graph_db.store_parsing_results(remaining_parsing_results)
+            #     print("   • Additional data ingestion completed")
+            # else:
+            #     print("   • No additional files to process")
 
             # Additional step: Establish method call relationships
             # print("\n🔗 Step 6: Establishing method call relationships...")
-            establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
+            # establish_method_call_relationships(graph_db, parsing_results, remaining_parsing_results if remaining_files else {})
             # print("✅ Method call relationships established")
+
+            # Review methods using LLM
+            review_methods_with_llm_parallel(graph_db, batch_size=5, max_workers=3)
 
             print(f"\n📈 Generated Code Structure Visualization:")
             print("="*60)

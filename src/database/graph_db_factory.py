@@ -101,3 +101,15 @@ class CallStackGraphDB:
     def close(self):
         """Clean up database connections"""
         self.db.close()
+
+    def get_all_methods_for_review(self) -> List[Dict[str, Any]]:
+        """Get all methods with their definitions for LLM review"""
+        return self.db.get_all_methods_for_review()
+
+    def add_review(self, method_id: str, review_data: Dict[str, Any]) -> str:
+        """Add a review node linked to a method"""
+        return self.db.add_review(method_id, review_data)
+
+    def clear_existing_reviews(self):
+        """Clear all existing review nodes"""
+        return self.db.clear_existing_reviews()

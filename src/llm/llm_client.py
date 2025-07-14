@@ -91,32 +91,32 @@ def generate_entrypoints_list(text_tree, project_path):
     
     prompt = f"""Analyze the following C# project structure and identify ALL entry points in the codebase.
 
-Project Path: {project_path}
-Project Structure:
-{text_tree}
+    Project Path: {project_path}
+    Project Structure:
+    {text_tree}
 
-Return ONLY a JSON array with the following structure. Do not include any additional text, explanations, or formatting outside of the JSON:
+    Return ONLY a JSON array with the following structure. Do not include any additional text, explanations, or formatting outside of the JSON:
 
-[
-  {{
-    "entrypoint": "entry point name",
-    "file": "relative/path/to/file.cs",
-    "type": "entry point type",
-    "trigger": "how this entry point gets triggered"
-  }}
-]
+    [
+    {{
+        "entrypoint": "entry point name",
+        "file": "relative/path/to/file.cs",
+        "type": "entry point type",
+        "trigger": "how this entry point gets triggered"
+    }}
+    ]
 
-Entry point types to look for:
-- Main method (Program.cs)
-- Controller actions (HTTP endpoints)
-- Background services/hosted services
-- Event handlers
-- Scheduled jobs/tasks
-- Message queue consumers
-- Database triggers/stored procedures
-- Startup/configuration methods
+    Entry point types to look for:
+    - Main method (Program.cs)
+    - Controller actions (HTTP endpoints)
+    - Background services/hosted services
+    - Event handlers
+    - Scheduled jobs/tasks
+    - Message queue consumers
+    - Database triggers/stored procedures
+    - Startup/configuration methods
 
-The trigger description must be one line maximum and describe how the entry point is invoked."""
+    The trigger description must be one line maximum and describe how the entry point is invoked."""
 
     try:
         response = client.chat.completions.create(
@@ -133,6 +133,67 @@ The trigger description must be one line maximum and describe how the entry poin
             ],
             temperature=0.3,
             max_tokens=4000,
+            stream=False
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception:
+        return None
+
+
+def review_csharp_methods(methods_data, file_path):
+    """Review C# methods using LLM to identify potential issues and improvements"""
+    client = initialize_llm_client()
+    if not client:
+        return None
+    
+    prompt = f"""Analyze the following C# methods and provide a code review focusing on potential issues, improvements, and best practices.
+
+    File Path: {file_path}
+    Methods Data:
+    {json.dumps(methods_data, indent=2)}
+
+    For each method, analyze:
+    - Code quality and readability
+    - Performance considerations
+    - Security vulnerabilities
+    - Design patterns and SOLID principles
+    - Error handling
+    - Testing considerations
+    - Method complexity and maintainability
+
+    Return ONLY a JSON array with the following structure. Do not include any additional text, explanations, or formatting outside of the JSON:
+
+    [
+    {{
+        "method_name": "method name",
+        "class_name": "class name",
+        "severity": "low|medium|high|critical",
+        "issue_type": "performance|security|design|complexity|maintainability|error_handling|testing",
+        "description": "brief description of the issue or improvement",
+        "recommendation": "specific recommendation to fix or improve",
+        "line_reference": "relevant code snippet or pattern identified"
+    }}
+    ]
+
+    Only include findings that are actionable and specific. Focus on real issues rather than minor style preferences."""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "You are an expert C# code reviewer. Return only valid JSON arrays without any additional text, explanations, or markdown formatting. Focus on actionable feedback and real issues."
+                },
+                {
+                    "role": "user", 
+                    "content": prompt
+                }
+            ],
+            temperature=0.2,
+            max_tokens=6000,
             stream=False
         )
         
