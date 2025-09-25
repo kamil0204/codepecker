@@ -1,0 +1,79 @@
+### CodePecker API Test - Class Reviews Endpoint
+### This file tests the new /api/class/{class_name}/reviews endpoint
+
+# Test the web UI - open this in browser
+GET http://localhost:8000/
+Accept: text/html
+
+###
+
+# Test the health endpoint first to ensure the server is running
+GET http://localhost:8000/api/health
+Accept: application/json
+
+###
+
+# Get all available classes to see what's available for testing
+GET http://localhost:8000/api/classes
+Accept: application/json
+
+###
+
+# Test the reviews endpoint with a specific class name
+# Replace "YourClassName" with an actual class name from your database
+GET http://localhost:8000/api/class/CompanyController/reviews
+Accept: application/json
+
+###
+
+# Test with another class that might have reviews
+GET http://localhost:8000/api/class/ProjectController/reviews
+Accept: application/json
+
+###
+
+# Test with a class that might not exist (should return 404)
+GET http://localhost:8000/api/class/NonExistentClass/reviews
+Accept: application/json
+
+###
+
+# Get database stats to understand the data structure
+GET http://localhost:8000/api/stats
+Accept: application/json
+
+###
+
+# Test the API documentation endpoint
+GET http://localhost:8000/docs
+Accept: text/html
+
+###
+
+### Expected Response Format for Class Reviews:
+### {
+###   "class_name": "CompanyController",
+###   "file_path": "IFS.Project.API/Controllers/CompanyController.cs",
+###   "visibility": "Public",
+###   "methods": [
+###     {
+###       "name": "GetCompanies",
+###       "visibility": "Public",
+###       "definition": "public async Task<IActionResult> GetCompanies()",
+###       "reviews": [
+###         {
+###           "method_name": "GetCompanies",
+###           "class_name": "CompanyController",
+###           "severity": "Medium",
+###           "issue_type": "Performance",
+###           "description": "Method could benefit from caching",
+###           "recommendation": "Consider implementing response caching",
+###           "line_reference": "15-25",
+###           "created_at": "2025-01-14T10:30:00Z"
+###         }
+###       ]
+###     }
+###   ],
+###   "total_methods": 5,
+###   "total_reviews": 8
+### }

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodePecker - Code Review Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
+            padding: 10px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #6c757d;
+            color: white;
+            padding: 15px 30px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+            font-weight: 400;
+        }
+
+        .header p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .class-selector {
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .methods-panel {
+            flex: 0 0 40%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .reviews-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            border-radius: 6px 6px 0 0;
+            border-bottom: 1px solid #e1e5e9;
+            font-weight: 600;
+            color: #495057;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #e1e5e9;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            background: white;
+            min-height: 0; /* Important for proper flexbox scrolling */
+        }
+
+        .class-selector {
+            margin-bottom: 30px;
+        }
+
+        .class-selector label {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .class-dropdown {
+            width: 100%;
+            padding: 12px 15px;
+            font-size: 1rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            background: white;
+            transition: border-color 0.3s ease;
+        }
+
+        .class-dropdown:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1rem;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .class-info {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 3px solid #6c757d;
+            flex-shrink: 0;
+        }
+
+        .class-name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .class-path {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .class-stats {
+            font-size: 0.95rem;
+            color: #555;
+        }
+
+        .methods-container {
+            padding: 0;
+        }
+
+        .method-item {
+            border: none;
+            border-bottom: 1px solid #e1e5e9;
+            border-radius: 0;
+            margin-bottom: 0;
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        .method-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .method-item.selected {
+            background-color: #e9ecef;
+            border-left: 3px solid #6c757d;
+        }
+
+        .method-header {
+            background: transparent;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .method-header:hover {
+            background: #f0f0f0;
+        }
+
+        .method-item.selected .method-header {
+            background: transparent;
+        }
+
+        .method-info {
+            flex: 1;
+        }
+
+        .method-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .method-visibility {
+            font-size: 0.85rem;
+            color: #666;
+            background: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+
+        .review-count {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .severity-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .severity-badge.high {
+            background: #dc3545;
+            color: white;
+        }
+
+        .severity-badge.medium {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .severity-badge.low {
+            background: #28a745;
+            color: white;
+        }
+
+        .severity-badge.zero {
+            background: #6c757d;
+            color: white;
+        }
+
+        .expand-icon {
+            display: none; /* Hide expand icon since we don't expand inline anymore */
+        }
+
+        .method-reviews {
+            display: none; /* This won't be used in the new layout */
+        }
+
+        .method-definition {
+            background: #f8f9fa;
+            border-left: 3px solid #6c757d;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 0 4px 4px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .method-definition.truncated {
+            max-height: 80px;
+            overflow: hidden;
+        }
+
+        .method-definition.truncated::after {
+            content: '...';
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: #f8f9fa;
+            padding: 0 5px;
+        }
+
+        .expand-code-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .expand-code-btn:hover {
+            background: #5a6268;
+        }
+
+        .review-item {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .review-item.high {
+            border-left-color: #dc3545;
+        }
+
+        .review-item.medium {
+            border-left-color: #ffc107;
+        }
+
+        .review-item.low {
+            border-left-color: #28a745;
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .review-severity {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .review-severity.high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .review-severity.medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .review-severity.low {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .review-type {
+            background: #e7f3ff;
+            color: #0066cc;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .review-description {
+            color: #333;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .review-recommendation {
+            background: #f0f8ff;
+            border-left: 3px solid #0066cc;
+            padding: 10px;
+            border-radius: 0 5px 5px 0;
+            font-style: italic;
+            color: #004080;
+        }
+
+        .review-line {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            color: #666;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #dc3545;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 CodePecker</h1>
+            <p>Code Review Dashboard - Analyze your codebase quality</p>
+        </div>
+        
+        <div class="content">
+            <div class="class-selector">
+                <label for="classSelect">Select a Class to Review:</label>
+                <select id="classSelect" class="class-dropdown">
+                    <option value="">Loading classes...</option>
+                </select>
+            </div>
+            
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                Loading class reviews...
+            </div>
+            
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            
+            <div id="classContent" style="display: none;">
+                <div id="classInfo" class="class-info"></div>
+                
+                <div class="main-content">
+                    <div class="methods-panel">
+                        <div class="panel-header">
+                            Methods (<span id="methodCount">0</span>)
+                        </div>
+                        <div class="panel-content">
+                            <div id="methodsContainer" class="methods-container"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="reviews-panel">
+                        <div class="panel-header">
+                            Reviews for <span id="selectedMethodName">No method selected</span>
+                        </div>
+                        <div class="panel-content">
+                            <div id="reviewsContainer">
+                                <div class="no-data">Select a method to view its reviews</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="noData" class="no-data" style="display: none;">
+                <p>No data available. Please select a class to view its reviews.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        let currentClassData = null;
+        let selectedMethodIndex = null;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadClasses();
+        });
+
+        // Load all available classes
+        async function loadClasses() {
+            try {
+                const response = await fetch(`${API_BASE}/classes`);
+                if (!response.ok) throw new Error('Failed to load classes');
+                
+                const data = await response.json();
+                const select = document.getElementById('classSelect');
+                
+                select.innerHTML = '<option value="">Select a class...</option>';
+                
+                data.classes.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls.name;
+                    option.textContent = `${cls.name} (${cls.visibility})`;
+                    select.appendChild(option);
+                });
+                
+                select.addEventListener('change', handleClassSelection);
+                
+            } catch (error) {
+                showError('Failed to load classes. Please ensure the server is running.');
+                console.error('Error loading classes:', error);
+            }
+        }
+
+        // Handle class selection
+        async function handleClassSelection(event) {
+            const className = event.target.value;
+            
+            if (!className) {
+                hideAllContent();
+                showNoData();
+                return;
+            }
+            
+            showLoading();
+            
+            try {
+                const response = await fetch(`${API_BASE}/class/${encodeURIComponent(className)}/reviews`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Class not found');
+                    }
+                    throw new Error('Failed to load class reviews');
+                }
+                
+                const data = await response.json();
+                currentClassData = data;
+                displayClassReviews(data);
+                
+            } catch (error) {
+                showError(`Failed to load reviews for class "${className}": ${error.message}`);
+                console.error('Error loading class reviews:', error);
+            }
+        }
+
+        // Display class reviews
+        function displayClassReviews(data) {
+            hideAllContent();
+            
+            // Display class info
+            const classInfo = document.getElementById('classInfo');
+            classInfo.innerHTML = `
+                <div class="class-name">${data.class_name}</div>
+                <div class="class-path">${data.file_path || 'Path not available'}</div>
+                <div class="class-stats">
+                    <strong>Visibility:</strong> ${data.visibility} | 
+                    <strong>Methods:</strong> ${data.total_methods} | 
+                    <strong>Total Reviews:</strong> ${data.total_reviews}
+                </div>
+            `;
+            
+            // Update method count
+            document.getElementById('methodCount').textContent = data.total_methods;
+            
+            // Display methods in left panel
+            const methodsContainer = document.getElementById('methodsContainer');
+            methodsContainer.innerHTML = '';
+            
+            if (data.methods.length === 0) {
+                methodsContainer.innerHTML = '<div class="no-data">No methods found for this class.</div>';
+            } else {
+                data.methods.forEach((method, index) => {
+                    const methodElement = createMethodElement(method, index);
+                    methodsContainer.appendChild(methodElement);
+                });
+            }
+            
+            // Clear reviews panel
+            clearReviewsPanel();
+            
+            document.getElementById('classContent').style.display = 'block';
+        }
+
+        // Create method element
+        function createMethodElement(method, index) {
+            const methodDiv = document.createElement('div');
+            methodDiv.className = 'method-item';
+            methodDiv.setAttribute('data-method-index', index);
+            
+            // Count reviews by severity
+            const severityCounts = {
+                high: 0,
+                medium: 0,
+                low: 0
+            };
+            
+            method.reviews.forEach(review => {
+                const severity = (review.severity || 'low').toLowerCase();
+                if (severityCounts.hasOwnProperty(severity)) {
+                    severityCounts[severity]++;
+                }
+            });
+            
+            const totalReviews = method.reviews.length;
+            const reviewCountHTML = createReviewCountHTML(severityCounts, totalReviews);
+            
+            methodDiv.innerHTML = `
+                <div class="method-header" onclick="selectMethod(${index})">
+                    <div class="method-info">
+                        <div class="method-name">${method.name}</div>
+                        <span class="method-visibility">${method.visibility}</span>
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        ${reviewCountHTML}
+                    </div>
+                </div>
+            `;
+            
+            return methodDiv;
+        }
+
+        // Create review count HTML with severity breakdown
+        function createReviewCountHTML(severityCounts, totalReviews) {
+            if (totalReviews === 0) {
+                return '<div class="review-count"><span class="severity-badge zero">0</span></div>';
+            }
+            
+            const badges = [];
+            
+            // Add badges in order: high, medium, low
+            if (severityCounts.high > 0) {
+                badges.push(`<span class="severity-badge high">${severityCounts.high}</span>`);
+            }
+            if (severityCounts.medium > 0) {
+                badges.push(`<span class="severity-badge medium">${severityCounts.medium}</span>`);
+            }
+            if (severityCounts.low > 0) {
+                badges.push(`<span class="severity-badge low">${severityCounts.low}</span>`);
+            }
+            
+            return `<div class="review-count">${badges.join('')}</div>`;
+        }
+
+        // Create reviews HTML
+        function createReviewsHTML(reviews) {
+            if (reviews.length === 0) {
+                return '<div class="no-data">No reviews available for this method.</div>';
+            }
+            
+            // Sort reviews by severity (high -> medium -> low)
+            const severityOrder = { 'high': 1, 'medium': 2, 'low': 3 };
+            const sortedReviews = reviews.sort((a, b) => {
+                const severityA = (a.severity || 'low').toLowerCase();
+                const severityB = (b.severity || 'low').toLowerCase();
+                return (severityOrder[severityA] || 3) - (severityOrder[severityB] || 3);
+            });
+            
+            return sortedReviews.map(review => `
+                <div class="review-item ${review.severity || 'low'}">
+                    <div class="review-header">
+                        <span class="review-severity ${review.severity || 'low'}">${review.severity || 'Unknown'}</span>
+                        <span class="review-type">${review.issue_type || 'General'}</span>
+                    </div>
+                    <div class="review-description">${review.description || 'No description available'}</div>
+                    ${review.recommendation ? `<div class="review-recommendation"><strong>Recommendation:</strong> ${review.recommendation}</div>` : ''}
+                    ${review.line_reference ? `<div class="review-line"><strong>Line:</strong> ${review.line_reference}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Select method and show reviews in right panel
+        function selectMethod(index) {
+            // Update selected method
+            selectedMethodIndex = index;
+            
+            // Update UI selection
+            document.querySelectorAll('.method-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.querySelector(`[data-method-index="${index}"]`).classList.add('selected');
+            
+            // Get method data
+            const method = currentClassData.methods[index];
+            
+            // Update reviews panel header
+            document.getElementById('selectedMethodName').textContent = method.name;
+            
+            // Display reviews in right panel
+            const reviewsContainer = document.getElementById('reviewsContainer');
+            
+            let content = '';
+            
+            // Add method definition (truncated)
+            if (method.definition) {
+                const truncatedDefinition = truncateCode(method.definition, 3);
+                content += `
+                    <div class="method-definition truncated" id="methodDef_${index}">
+                        ${truncatedDefinition}
+                    </div>
+                    <button class="expand-code-btn" onclick="toggleCodeExpansion(${index})">
+                        Show Full Code
+                    </button>
+                `;
+            }
+            
+            // Add reviews
+            content += createReviewsHTML(method.reviews);
+            
+            reviewsContainer.innerHTML = content;
+        }
+
+        // Clear reviews panel
+        function clearReviewsPanel() {
+            document.getElementById('selectedMethodName').textContent = 'No method selected';
+            document.getElementById('reviewsContainer').innerHTML = '<div class="no-data">Select a method to view its reviews</div>';
+            selectedMethodIndex = null;
+        }
+
+        // Truncate code to specified number of lines
+        function truncateCode(code, maxLines) {
+            const lines = code.split('\n');
+            if (lines.length <= maxLines) {
+                return code;
+            }
+            return lines.slice(0, maxLines).join('\n') + '\n...';
+        }
+
+        // Toggle code expansion
+        function toggleCodeExpansion(index) {
+            const defElement = document.getElementById(`methodDef_${index}`);
+            const button = defElement.nextElementSibling;
+            const method = currentClassData.methods[index];
+            
+            if (defElement.classList.contains('truncated')) {
+                defElement.classList.remove('truncated');
+                defElement.innerHTML = method.definition;
+                button.textContent = 'Show Less';
+            } else {
+                defElement.classList.add('truncated');
+                defElement.innerHTML = truncateCode(method.definition, 3);
+                button.textContent = 'Show Full Code';
+            }
+        }
+
+        // Utility functions
+        function showLoading() {
+            hideAllContent();
+            document.getElementById('loadingIndicator').style.display = 'block';
+        }
+
+        function showError(message) {
+            hideAllContent();
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
+        function showNoData() {
+            hideAllContent();
+            document.getElementById('noData').style.display = 'block';
+        }
+
+        function hideAllContent() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('classContent').style.display = 'none';
+            document.getElementById('noData').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

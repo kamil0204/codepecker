@@ -3,10 +3,14 @@ Web API server for CodePecker - serves data from Neo4j database using FastAPI
 """
 import sys
 import os
+import webbrowser
+import threading
+import time
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -25,14 +29,20 @@ app = FastAPI(
     redoc_url="/redoc"  # ReDoc
 )
 
-# Add CORS middleware
+# Add CORS middleware with more permissive settings for local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production, specify exact origins
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+# Mount static files directory for serving the UI
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Global database instance
 graph_db = None
@@ -82,6 +92,30 @@ class CallTreeResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: str
+
+class ReviewInfo(BaseModel):
+    method_name: str
+    class_name: str
+    severity: Optional[str]
+    issue_type: Optional[str]
+    description: Optional[str]
+    recommendation: Optional[str]
+    line_reference: Optional[str]
+    created_at: Optional[str]
+
+class MethodWithReviews(BaseModel):
+    name: str
+    visibility: str
+    definition: Optional[str]
+    reviews: List[ReviewInfo]
+
+class ClassReviewsResponse(BaseModel):
+    class_name: str
+    file_path: Optional[str]
+    visibility: str
+    methods: List[MethodWithReviews]
+    total_methods: int
+    total_reviews: int
 
 def initialize_database():
     """Initialize the database connection"""
@@ -275,6 +309,91 @@ async def get_method_call_tree(class_name: str, method_name: str, max_depth: int
         print(f"Error in call-tree endpoint for {class_name}.{method_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get call tree: {str(e)}")
 
+@app.get("/api/class/{class_name}/reviews", response_model=ClassReviewsResponse)
+async def get_class_reviews(class_name: str):
+    """Get all methods and their reviews for a specific class"""
+    if not graph_db:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    try:
+        with graph_db.db.driver.session() as session:
+            # Get class info
+            class_query = """
+            MATCH (c:Class {name: $class_name})
+            RETURN c.name as name, 
+                   c.file_path as file_path, 
+                   c.visibility as visibility
+            """
+            class_result = session.run(class_query, class_name=class_name)
+            class_record = class_result.single()
+            
+            if not class_record:
+                raise HTTPException(status_code=404, detail="Class not found")
+            
+            # Get methods and their reviews
+            methods_query = """
+            MATCH (c:Class {name: $class_name})-[:HAS_METHOD]->(m:Method)
+            OPTIONAL MATCH (m)-[:HAS_REVIEW]->(r:Review)
+            RETURN m.name as method_name,
+                   m.visibility as method_visibility,
+                   m.definition as method_definition,
+                   collect(
+                       CASE WHEN r IS NOT NULL THEN {
+                           method_name: r.method_name,
+                           class_name: r.class_name,
+                           severity: r.severity,
+                           issue_type: r.issue_type,
+                           description: r.description,
+                           recommendation: r.recommendation,
+                           line_reference: r.line_reference,
+                           created_at: toString(r.created_at)
+                       } ELSE null END
+                   ) as reviews
+            ORDER BY m.name
+            """
+            methods_result = session.run(methods_query, class_name=class_name)
+            
+            methods = []
+            total_reviews = 0
+            
+            for method_record in methods_result:
+                # Filter out null reviews and convert to ReviewInfo objects
+                raw_reviews = [r for r in method_record["reviews"] if r is not None]
+                reviews = [ReviewInfo(**review) for review in raw_reviews]
+                total_reviews += len(reviews)
+                
+                methods.append(MethodWithReviews(
+                    name=method_record["method_name"],
+                    visibility=method_record["method_visibility"],
+                    definition=method_record["method_definition"],
+                    reviews=reviews
+                ))
+            
+            return ClassReviewsResponse(
+                class_name=class_record["name"],
+                file_path=class_record["file_path"],
+                visibility=class_record["visibility"],
+                methods=methods,
+                total_methods=len(methods),
+                total_reviews=total_reviews
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/")
+async def root():
+    """Serve the main UI"""
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    index_path = os.path.join(static_dir, "index.html")
+    
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    else:
+        return {"message": "CodePecker API is running. UI not found. Visit /docs for API documentation."}
+
 # TODO: Add NetworkX-based graph visualization endpoints
 # 
 # Priority: HIGH - Interactive graph UI layer for visual drill-down experience
@@ -310,20 +429,33 @@ async def get_method_call_tree(class_name: str, method_name: str, max_depth: int
 # - D3.js or Cytoscape.js for web-based graph rendering
 # - Interactive navigation and node selection
 # - Real-time layout switching
+def open_browser():
+    """Open the default web browser to the UI after a short delay"""
+    time.sleep(2)  # Wait for server to start
+    webbrowser.open("http://localhost:8000")
+
 def main():
     """Main entry point for the server"""
     print("🚀 Starting CodePecker FastAPI Server...")
     
     print(f"🌐 Server will start on http://localhost:8000")
+    print("🎨 Web UI available at: http://localhost:8000")
     print("📊 API endpoints available:")
     print("   GET /api/health - Health check")
     print("   GET /api/classes - List all classes")
     print("   GET /api/class/{name}/graph - Get class graph")
+    print("   GET /api/class/{name}/reviews - Get class methods with reviews")
     print("   GET /api/call-tree/{name}/{method}?max_depth=5 - Get hierarchical call tree")
     print("   GET /api/stats - Database statistics")
     print("   GET /docs - Swagger UI documentation")
     print("   GET /redoc - ReDoc documentation")
     print()
+    print("🌐 Opening browser automatically...")
+    
+    # Start browser opening in a separate thread
+    browser_thread = threading.Thread(target=open_browser)
+    browser_thread.daemon = True
+    browser_thread.start()
     
     # Start the FastAPI server with Uvicorn
     uvicorn.run(
